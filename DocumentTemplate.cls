@@ -6,6 +6,14 @@
 /// <p>^DocumentPatternSettings("zipCommand") - команда для создания zip архива(принимает имя файла, директорию)</p>
 /// <p>^DocumentPatternSettings("unzipCommand") - команда для распаковки zip архива(принимает имя файла, директорию)</p>
 /// <p> Команды упаковки, распаковки должны содержать слова $Fullfilename и $Directory для замены</p>
+/// <p> При запаковке команда запаковки выполняется относительно директории распакованного документа </p>
+/// <p> Пример для windows 7z </p>
+/// <p> ^DocumentPatternSettings("zipCommand")="""C:\Program Files\7-Zip\7z.exe"" a -y $Fullfilename $Directory\*"</p>
+/// <p> ^DocumentPatternSettings("unzipCommand")="""C:\Program Files\7-Zip\7z.exe"" x -y -o$Directory $Fullfilename"</p>
+/// <p> пример для линукса zip unzip/p>
+/// <p> unzip -u -q -d $Directory  $Fullfilename </p>
+/// <p> zip -r -u -q $Fullfilename ./*</p>
+/// <p>^DocumentPatternSettings("maxOrderIterations") - для защиты от бесконечных циклов, максимальное количество допустипух итераций в цикле
 Class DocumentTemplate.DocumentTemplate Extends %Persistent
 {
 
@@ -70,7 +78,7 @@ ClassMethod LoadDocumentFromGlobal(masRef, name, group As %String = "default") A
 
 /// Функция создания документа на основе шаблона
 /// <var>masRef</var> - ссылка на массив для сгенерированного документа
-/// <var>deleteFile<va> - удалять ли файл в рабочей директории после сохранения в глобал
+/// <var>deleteFile</var> - удалять ли файл в рабочей директории после сохранения в глобал
 ClassMethod RenderDocument(name As %String, masRef As %String = "^||RenderedDocument", deleteFile As %Boolean = 1) As %String
 {
 	if masRef'["^||" quit "masRef - должен быть private global"
@@ -104,22 +112,25 @@ ClassMethod RenderDocument(name As %String, masRef As %String = "^||RenderedDocu
 	// Запаковка сгенерированного документа
 	set renderedFilename = $Replace($H,",","-")_"-"_$J_"-"_documentTemplate.Filename
 	set fullRenderedFilename = ##class(%File).NormalizeFilename(renderedFilename, workingDirectory)
-	set sc = ..Pack(fullUnpackDirectory, fullRenderedFilename) 
-	// Удаление распакованной директории
-	do ##class(%File).RemoveDirectoryTree(fullUnpackDirectory)
-	
+	set sc = ..Pack(fullUnpackDirectory, fullRenderedFilename)
+	if $$$ISERR(sc) do clean quit $system.OBJ.DisplayError(sc) 
 	// Копирование документа в массив
 	set stream=##class(%Stream.FileBinary).%New()
 	set sc=stream.LinkToFile(fullRenderedFilename)
-	if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc)
+	if $$$ISERR(sc) do clean quit $system.OBJ.DisplayError(sc) 
 	set streamTo = ##class(%Stream.GlobalBinary).%New(masRef)
 	set sc = streamTo.CopyFromAndSave(stream)
-	if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc)
+	if $$$ISERR(sc) do clean quit $system.OBJ.DisplayError(sc) 
+	do clean
+	quit ""
+clean
+	// Удаление распакованной директории
+	do ##class(%File).RemoveDirectoryTree(fullUnpackDirectory)
 	// Удаление документа 
 	if deleteFile=1{
 		d ##class(%File).ComplexDelete(fullRenderedFilename)
 	}
-	quit ""
+	quit
 }
 
 /// Распаковка документа на диске в директорию
@@ -134,15 +145,22 @@ ClassMethod Unpack(fullFilename As %String, directory As %String) As %Status
 	if 'created{
 		quit $$$ERROR($$$GeneralError, "Ошибка создания директории для распаковки шаблона "_err)
 	}
+	// Сохранение текущей директории
+	set curDir = ##class(%SYSTEM.Process).CurrentDirectory()
+	do ##class(%SYSTEM.Process).CurrentDirectory(directory)
 	set sc = $ZF(-1, zipCommand)
 	if sc'=0{
+		d ##class(%SYSTEM.Process).CurrentDirectory(curDir)
 		quit $$$ERROR($$$GeneralError, "Ошибка при распаковке")
 	}
+	// Восстановление текущей директории 
+	d ##class(%SYSTEM.Process).CurrentDirectory(curDir)
+	
 	quit $$$OK
 }
 
 /// Упаковка документа 
-ClassMethod Pack(directory As %String, fullFilename As %String)
+ClassMethod Pack(directory As %String, fullFilename As %String) As %Status
 {
 	set zipCommand = ..GetZipCommand(fullFilename, directory)
 	if zipCommand=""{

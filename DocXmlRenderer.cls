@@ -412,9 +412,11 @@ Method Processing(ByRef node As %XML.Node) As %String
 		do ..WriteDebug("Цикл по массиву "_masRef_" "_indexRef)
 		do ..DeclareIndex(indexRef)
 		// Цикл по индексу
+		set infiniteLoopProtector = 0
 		for{
 			try{
 				set index = ..OrderMas(masRef, indexRef)
+				set infiniteLoopProtector = infiniteLoopProtector + 1
 				do ..WriteDebug("Внутри массива "_masRef_" индекс "_indexRef_" "_index)
 			}
 			catch exeption{
@@ -422,6 +424,10 @@ Method Processing(ByRef node As %XML.Node) As %String
 			}
 			quit:index=""
 			quit:error'=""
+			if infiniteLoopProtector > $G(^DocumentPatternSettings("maxOrderIterations"),"128000"){
+				set error="Защита от бесконечного цикла, количество итераций превысило "_^DocumentPatternSettings("maxOrderIterations")
+				quit
+			}
 			set siblingsExist = 1
 			// Если начальный сиблинг с тэгом пустой то его не надо копировать
 			if ..IsNodeEmpty(node){
@@ -456,14 +462,15 @@ Method Processing(ByRef node As %XML.Node) As %String
 		try{
 			set value = ..EvaluateExpression(..SetTags(node.NodeId,"expression"))
 		}
-		catch{
-			set error = "Ошибка при вычислении выражения set: "_..OrderSiblings(node.NodeId,"expression")_$C(13,10)_exeption.DisplayString()
+		catch exeption{
+			set error = "Ошибка при вычислении выражения set: "_..SetTags(node.NodeId,"expression")_$C(13,10)_exeption.DisplayString()
 		}
+		quit:error'="" error
 		try{
 			d ..SetVariable(..SetTags(node.NodeId,"variable"),value)
 		}
-		catch{
-			set error = "Ошибка при присваивании переменнойt: "_..OrderSiblings(node.NodeId,"variable")_$C(13,10)_exeption.DisplayString()
+		catch exeption{
+			set error = "Ошибка при присваивании переменной: "_..SetTags(node.NodeId,"variable")_$C(13,10)_exeption.DisplayString()
 		}
 	}
 	// Пропуск узлов, помеченных на пропуск если они пустые
@@ -804,6 +811,7 @@ ClassMethod KillIndex(indexRef) [ ProcedureBlock = 0 ]
 /// присваивание значения в глобальном пространстве имен
 ClassMethod SetVariable(variableRef, value) [ ProcedureBlock = 0 ]
 {
+	do ..WriteDebug("Установка переменной "_variableRef_" ="_value)
 	set @variableRef = value
 }
 
