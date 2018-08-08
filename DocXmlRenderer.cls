@@ -144,6 +144,7 @@ Method Render() As %String
 		if error'="" quit error
 		do ..WriteDebug("Хедер сгенерирован")
 	}
+	do ..WriteDebug("Рендеринг завршен")
 	quit ""
 }
 
@@ -269,11 +270,12 @@ Method LexicalParse(xmlNode) As %String
 				// Если тэг закончен, то он собирается в один узел
 				if $D(..CurrentTagNodes) {
 					// Если в текущем узле еще что-то есть то остаток тэга вставляется позади
-					if i <$length(text){
+					
+					if (i <$length(text)){
 						set newNodeId = ..InsertNodeBefore(.xmlNode,$E(text, 1, i))
 						do ..PushToCurrentTagNodesStack(newNodeId)
 						// Оставшийся текст остается в текущем узле
-						d xmlNode.ReplaceElement(xmlNode.LocalName,xmlNode.Namespace,$E(text,i+1,*),xmlNode.QName)
+						do ..ReplaceNode(.xmlNode, xmlNode.LocalName, xmlNode.Namespace, $E(text,i+1,*), xmlNode.QName)
 					}
 					else{
 						do ..PushToCurrentTagNodesStack(xmlNode.NodeId) 
@@ -324,14 +326,18 @@ Method DeleteCurrentTagNodes()
 Method StoreTagInOneNode()
 {
 	if '$D(..CurrentTagNodes) quit
+	// Если тэг в одном узле то выход
+	if $LISTLENGTH(..CurrentTagNodesStack)=1 d ..DeleteCurrentTagNodes() quit
 	do ..WriteDebug("Начало переноса в один тэг")
 	set ptr = 0
 	set nodeId=""
+	
 	set isNotEnd = $LISTNEXT(..CurrentTagNodesStack,ptr,nodeId)
-	// Если тэг в одном узле то выход
 	if 'isNotEnd d ..DeleteCurrentTagNodes() quit
+	
 	set mainNodeId = nodeId
 	set mainNode = ..XMLDocument.GetNode(nodeId)
+
 	set nodeText=""
 	try{
 		d mainNode.GetText(.nodeText)
@@ -348,7 +354,8 @@ Method StoreTagInOneNode()
 		}
 		set ..ToDeleteNodes(node.NodeId)=""
 	}
-	d mainNode.ReplaceElement(mainNode.LocalName,mainNode.Namespace,nodeText,mainNode.QName)
+	do ..ReplaceNode(.mainNode, mainNode.LocalName, mainNode.Namespace, nodeText, mainNode.QName)
+		
 	d ..WriteDebug("Перенесен в один узел "_nodeText)
 	k testText
 	k nodeText
@@ -425,7 +432,7 @@ Method Processing(ByRef node As %XML.Node) As %String
 			quit:index=""
 			quit:error'=""
 			if infiniteLoopProtector > $G(^DocumentPatternSettings("maxOrderIterations"),"128000"){
-				set error="Защита от бесконечного цикла, количество итераций превысило "_^DocumentPatternSettings("maxOrderIterations")
+				set error="Защита от бесконечного цикла, количество итераций превысило "_$G(^DocumentPatternSettings("maxOrderIterations"),"128000")
 				quit
 			}
 			set siblingsExist = 1
@@ -511,7 +518,8 @@ Method WriteAndEvaluateNode1(node As %XML.Node)
 	while attributeName'=""{
 		set name = node.GetAttributeQName(attributeName)
 		set value = node.GetAttributeValue(attributeName)
-		d ..XMLWriter.WriteAttribute(name, value)
+		set namespace = node.GetAttributeNamespace(attributeName)
+		d ..XMLWriter.WriteAttribute(name, value, namespace)
 		set attributeName = node.NextAttributeName(.attributeName)
 	}
 	set textExist = 0
@@ -530,11 +538,17 @@ Method WriteAndEvaluateNode1(node As %XML.Node)
 			catch exeption{
 				set error="Ошибка при вычислении выражения: "_expression_$C(13,10)_exeption.DisplayString()
 			}
-			if error'="" quit error 	
-			do ..XMLWriter.Write(result)
+			if error'="" quit error
+			if $E(result,1,6)="XMLMOD"{
+				set result=$E(result,7,*)
+				do ..XMLWriter.Write(result)
+			} 	
+			else{
+				do ..XMLWriter.WriteChars(result)
+			}
 		}
 		else{
-			do ..XMLWriter.Write(text)
+			do ..XMLWriter.WriteChars(text)
 		}
 	}
 	quit error
@@ -605,24 +619,97 @@ Method SeparateTags(node As %XML.Node) As %String
 		}
 		set tagExist=0
 	}
-	d node.ReplaceElement(node.LocalName,node.Namespace,text,node.QName)
+	do ..ReplaceNode(.node, node.LocalName, node.Namespace, text, node.QName)
 	quit ""
 }
 
 /// Вставляет Копию XML узла перед данным узлом с заданым текстом
-/// Возвращает id нвого узла
+/// Возвращает id нового узла
 Method InsertNodeBefore(ByRef node As %XML.Node, text As %String) As %String
 {
 	set nodeId = node.NodeId
 	set QName = node.QName
 	set localName = node.LocalName
 	set namespace = node.Namespace
+	
+	// копирование всех атрибутов в nodeAtributes, после вставки нового узла они теряются
+	set nodeAttributes = ""
+	do ..SaveNodeAttributes(.node, .nodeAttributes)
+	
+	
 	d node.MoveToParent()
+	set text = ..Replaceon160(text)
 	set newNodeId = node.InsertElement(localName, namespace, nodeId, text, QName)
+	
 	// Возврат на текущий узел
 	set node = ..XMLDocument.GetNode(newNodeId)
+	
+	
+	// Копирование всех атрибутов в старый и новый узел
+	set attributeName = ""
+	do ..SetAttributesToNode(.node, .nodeAttributes)
+
+	// Указатель узла возвращается в то же положение что и был до входа
 	d node.MoveToNextSibling()
+	do ..SetAttributesToNode(.node, .nodeAttributes)
 	quit newNodeId
+}
+
+/// Установка узлу атрибутов
+/// node - узел
+/// nodeAttributes - массив с атрибутами
+Method SetAttributesToNode(ByRef node As %XML.Node, ByRef nodeAttributes)
+{
+	set attributeName = ""
+	for{
+		set attributeName = $O(nodeAttributes(attributeName))
+		quit:attributeName=""
+		set name = nodeAttributes(attributeName,"name")
+		set value = nodeAttributes(attributeName,"value")
+		set namespace = nodeAttributes(attributeName,"namespace")
+		
+		do node.SetAttribute(name, namespace, value)
+	}
+}
+
+/// Сохранение атрибутов узла Node в массив nodeAttributes
+Method SaveNodeAttributes(ByRef node As %XML.Node, ByRef nodeAttributes)
+{
+	set attributeName = node.FirstAttributeName()
+	set nodeAttributes = ""
+	while attributeName'=""{
+		set name = node.GetAttributeQName(attributeName)
+		set value = node.GetAttributeValue(attributeName)
+		set namespace = node.GetAttributeNamespace(attributeName)
+		
+		set nodeAttributes(attributeName, "name") = name
+		set nodeAttributes(attributeName, "value") = value
+		set nodeAttributes(attributeName, "namespace") = namespace
+
+		set attributeName = node.NextAttributeName(attributeName)
+	}
+}
+
+Method ReplaceNode(ByRef node As %XML.Node, localName As %String, namespase As %String = "", text As %String = "", qname As %String = "")
+{
+	set nodeAttributes = ""
+	do ..SaveNodeAttributes(.node, .nodeAttributes)
+	// Пробелы в начале и конце заменяются на неразрывные, иначе они теряются
+	set text = ..Replaceon160(text)
+	do node.ReplaceElement(localName, namespase, text, qname)
+	do ..SetAttributesToNode(.node, .nodeAttributes)
+}
+
+/// Замена пробелов в начале и конце на неразрывные пробелы
+Method Replaceon160(text)
+{
+	if $E(text)=" "{
+		set $E(text) = $C(160)
+	}
+	if $E(text,*)=" "{
+		set $E(text, *) = $C(160)	
+	}
+	quit text
 }
 
 /// Синтаксический парсер. Для использования в функции TraverseXml
@@ -727,7 +814,7 @@ Method SyntaxParse(node As %XML.Node) As %String
 		quit "Недопустимый тэг: "_text	
 	}
 	// Удаление текста тэга
-	d node.ReplaceElement(node.LocalName,node.Namespace,"",node.QName)
+	do ..ReplaceNode(.node, node.LocalName, node.Namespace, "", node.QName)
 	quit ""
 }
 
@@ -747,10 +834,10 @@ Method FindSiblings(ref, refResult)
 		d node.MoveToFirstChild()
 		set siblingsExist = 1
 		while siblingsExist{
-			if firstNode.IsDescendant(node){
+			if ..IsDescendant(node, firstNode){
 				set firstSiblingNodeId = node.NodeId
 			}
-			if lastNode.IsDescendant(node){
+			if ..IsDescendant(node,lastNode){
 				set lastSiblingNodeId = node.NodeId
 			}
 			set siblingsExist = node.MoveToNextSibling()
@@ -781,11 +868,25 @@ Method NodeEmptyForTraverse(node As %XML.Node)
 	quit ""
 }
 
+ClassMethod ReplaceHtmlSymbols(string)
+{
+	set newString = $Replace(string,"<","&lt;")
+	set newString = $Replace(newString,">","&gt;")
+	set newString = $Replace(newString,"&","&amp;")
+	set newString = $Replace(newString,"""","&quot;")
+	quit newString
+}
+
 /// Функция вычисления выражения в глобальном пространстве имен
 ClassMethod EvaluateExpression(expression) [ ProcedureBlock = 0 ]
 {
 	do ..WriteDebug("Вычисляю выражение "_expression)
-	quit @expression
+	// Замена доковских кавычек на обычные,
+	set expression = $Replace(expression,"”","""")
+	set expression = $Replace(expression,"“","""")
+	set expression = $Replace(expression,"’","'")
+	set expression = $xecute("quit "_expression)
+	quit $Replace(expression,"_"," ")
 }
 
 /// Объявление индекса для обхода в глобальном пространстве имен
@@ -821,7 +922,7 @@ ClassMethod GetCommonAnscestor(node1 As %XML.Node, node2 As %XML.Node) As %XML.N
 	set node = node1.%ConstructClone()
 	set anscestorNotFound = 1
 	while anscestorNotFound{
-		if node2.IsDescendant(node) {
+		if ..IsDescendant(node, node2) {
 			set anscestorNotFound=0
 			quit
 		}else{
@@ -835,6 +936,23 @@ ClassMethod GetCommonAnscestor(node1 As %XML.Node, node2 As %XML.Node) As %XML.N
 	}
 	if 'anscestorNotFound quit node
 	quit ""
+}
+
+ClassMethod IsDescendant(parentNode As %XML.Node, node As %XML.Node) As %String
+{
+	set result = 0
+	if node.NodeId=parentNode.NodeId quit 1	
+	if parentNode.HasChildNodes(){
+		d parentNode.MoveToFirstChild()
+		set siblingsExist = 1
+		while siblingsExist{
+			set result = ..IsDescendant(.parentNode, node)
+			if result=1 quit
+			set siblingsExist = parentNode.MoveToNextSibling()
+		}
+		d parentNode.MoveToParent()
+	}
+	quit result
 }
 
 Method PopFromOrderStack()
@@ -876,6 +994,8 @@ Method WriteXmlNode(ByRef xmlNode As %XML.Node)
 ClassMethod WriteDebug(string)
 {
 	//write !,string
+	//set counter = $O(^DocumentPatternLog($J,$H,""),-1)
+	//set ^DocumentPatternLog($J,$H,counter + 1,string)=""
 }
 
 }
