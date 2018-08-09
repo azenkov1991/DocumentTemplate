@@ -83,15 +83,44 @@ ClassMethod LoadDocumentFromGlobal(masRef, name, group As %String = "default") A
 	quit ""
 }
 
-/// Функция создания документа на основе шаблона
+/// <var>templateName</var> - имя шаблона
 /// <var>masRef</var> - ссылка на массив для сгенерированного документа
-/// <var>deleteFile</var> - удалять ли файл в рабочей директории после сохранения в глобал
-ClassMethod RenderDocument(name As %String, masRef As %String = "^||RenderedDocument", deleteFile As %Boolean = 0) As %String
+/// <var>deleteFile</var> - удалять ли сгенерированный файл в рабочей директории после сохранения в глобал
+ClassMethod RenderDocumentToPrivateGlobal(templateName As %String, masRef As %String = "^||RenderedDocument", deleteFile As %Boolean = 0)
 {
 	if masRef'["^||" quit "masRef - должен быть private global"
-	k @masRef
-	set documentTemplate = ##class(DocumentTemplate.DocumentTemplate).GetDocument(name)
-	if documentTemplate="" quit "Темплейт с именем "_name_" не найден"
+	k @masRef	
+	
+	set renderedFilename = $Replace($H,",","-")_"-"_$J_"-"_documentTemplate.Filename
+	set fullRenderedFilename = ##class(%File).NormalizeFilename(renderedFilename, workingDirectory)
+	
+	set error = ..RenderDocument(templateName, fullRenderedFilename)
+	if error '="" quit error
+	
+	// Копирование документа в массив
+	set stream=##class(%Stream.FileBinary).%New()
+	set sc=stream.LinkToFile(fullRenderedFilename)
+	if $$$ISERR(sc)  quit $system.OBJ.DisplayError(sc) 
+	set streamTo = ##class(%Stream.GlobalBinary).%New(masRef)
+	set sc = streamTo.CopyFromAndSave(stream)
+	if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc) 
+	
+	// Удаление документа 
+	if deleteFile=1{
+		d ##class(%File).ComplexDelete(fullRenderedFilename)
+		d ..WriteDebug("Удаление файла "_fullRenderedFilename)
+	}
+	quit ""
+}
+
+/// Функция создания документа на основе шаблона
+/// <var>templateName</var> - имя шаблона
+/// <var>renderedFilename</var> - имя сгенерированного документа в рабочей директории
+ClassMethod RenderDocument(templateName As %String, renderedFilename As %String = "") As %String
+{
+	
+	set documentTemplate = ##class(DocumentTemplate.DocumentTemplate).GetDocument(templateName)
+	if documentTemplate="" quit "Темплейт с именем "_templateName_" не найден"
 	
 	set workingDirectory = $Get(^DocumentTemplateSettings("workingDirectory"),$Get(^%SYS("TempDir")))
 	
@@ -103,11 +132,14 @@ ClassMethod RenderDocument(name As %String, masRef As %String = "^||RenderedDocu
 		quit "Ошибка при создании рабочей директории"
 	}
 	d ..WriteDebug("Рабочая директория существует")
+	
 	//Копирование шаблона документа в рабочую директорию если его еще нет
-	set filename = $Replace($ZDTH(documentTemplate.DateTime,3,3),",","-")_"-"_documentTemplate.Filename
-	set fullFileName = ##class(%File).NormalizeFilename(filename, workingDirectory)
-	if '##class(%File).Exists(fullFileName){
-		set sc = documentTemplate.CopyOnDisk(workingDirectory, filename)
+	set templateFilename = $Replace($ZDTH(documentTemplate.DateTime,3,3),",","-")_"-"_documentTemplate.Filename
+	
+	
+	set templateFullFilename = ##class(%File).NormalizeFilename(templateFilename, workingDirectory)
+	if '##class(%File).Exists(templateFullFilename){
+		set sc = documentTemplate.CopyOnDisk(workingDirectory, templateFilename)
 		if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc)
 	}
 	
@@ -115,35 +147,29 @@ ClassMethod RenderDocument(name As %String, masRef As %String = "^||RenderedDocu
 	set unpackDirectory = $Replace($H,",","-")_"-"_$J_"-"_$Replace(documentTemplate.Filename,".","-")
 	set fullUnpackDirectory = ##class(%File).NormalizeFilename(unpackDirectory, workingDirectory)
 	
-	set sc = ..Unpack(fullFileName, fullUnpackDirectory)
+	set sc = ..Unpack(templateFullFilename, fullUnpackDirectory)
 	if sc'="" d ..WriteDebug(sc) quit sc
 	d ..WriteDebug("Документ распакован")
 	set error = ##class(DocumentTemplate.DocXmlRenderer).%New(fullUnpackDirectory).Render()
 	if error'="" d ..WriteDebug("Ошибка при обработке шаблона "_error) quit error
 
 	// Запаковка сгенерированного документа
-	set renderedFilename = $Replace($H,",","-")_"-"_$J_"-"_documentTemplate.Filename
+	if $G(renderedFilename)="" {
+		set renderedFilename = $Replace($H,",","-")_"-"_$J_"-"_documentTemplate.Filename
+	}
+	
 	set fullRenderedFilename = ##class(%File).NormalizeFilename(renderedFilename, workingDirectory)
 	set sc = ..Pack(fullUnpackDirectory, fullRenderedFilename)
 	if $$$ISERR(sc) do clean quit $system.OBJ.DisplayError(sc) 
-	// Копирование документа в массив
-	set stream=##class(%Stream.FileBinary).%New()
-	set sc=stream.LinkToFile(fullRenderedFilename)
-	if $$$ISERR(sc) do clean quit $system.OBJ.DisplayError(sc) 
-	set streamTo = ##class(%Stream.GlobalBinary).%New(masRef)
-	set sc = streamTo.CopyFromAndSave(stream)
-	if $$$ISERR(sc) do clean quit $system.OBJ.DisplayError(sc) 
+	
 	do clean
+
 	quit ""
 clean
 	// Удаление распакованной директории
 	do ##class(%File).RemoveDirectoryTree(fullUnpackDirectory)
 	d ..WriteDebug("Удаление директории "_fullUnpackDirectory)
-	// Удаление документа 
-	if deleteFile=1{
-		d ##class(%File).ComplexDelete(fullRenderedFilename)
-		d ..WriteDebug("Удаление файла "_fullRenderedFilename)
-	}
+
 	quit
 }
 
