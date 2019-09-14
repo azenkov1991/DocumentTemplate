@@ -1,6 +1,6 @@
 ﻿Include %sySystem
 
-/// Класс <CLASS>DocumentPatterns</CLASS> представляет собой шаблон документа Word или Excel
+/// Класс <CLASS>DocumentPatterns</CLASS> представляет собой шаблон документа Word 
 /// <p>^DocumentTemplateSettings - глобал для хранения настроек фукционала шаблонов документов</p>
 /// <p>^DocumentTemplateSettings("workingDirectory") - рабочая директория для экспорта, импорта файлов. По умолчанию install-dir\mgr\Temp</p>
 /// <p>^DocumentTemplateSettings("zipCommand") - команда для создания zip архива(принимает имя файла, директорию)</p>
@@ -17,7 +17,7 @@
 Class DocumentTemplate.DocumentTemplate Extends %Persistent
 {
 
-/// Сам документ docx или xlsx
+/// Сам документ docx 
 Property Content As %Stream.GlobalBinary [ Required ];
 
 /// Группа шаблона документа
@@ -264,4 +264,3 @@ ClassMethod WriteDebug(string)
 	//set ^DocumentPatternLog($J,$H,counter + 1,string)=""
 }
 
-}
