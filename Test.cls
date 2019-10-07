@@ -101,8 +101,10 @@ ClassMethod TestOrderTableRows() [ ProcedureBlock = 0 ]
 		set firstColumn(i)="firsRow "_i
 	}
 	for j=1:1:10{
-		
+		set secondColumn(j)="secondRow"_j
 	}
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderTableRows.docx")
+	quit error
 }
 
 ClassMethod TestOrderTableColumns() [ ProcedureBlock = 0 ]
