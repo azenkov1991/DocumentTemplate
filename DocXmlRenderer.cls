@@ -51,7 +51,7 @@ Property LexicalStateHistory As %List;
 /// Весь тэг будет перенесен в перый узел, остальные будут удалены
 Property CurrentTagNodes [ MultiDimensional ];
 
-Property CurrentTagNodesStack As %List;
+Property CurrentTagNodesList As %List;
 
 /// Узлы помеченые на удаление
 /// Во время обхода нельзя удалять узлы, так как ломается путь обхода
@@ -95,8 +95,8 @@ Property SkipIfEmptyNodes [ MultiDimensional ];
 Method %OnNew(directory As %String) As %Status
 {
 	set $this.Directory = directory
-	set ..LexicalCurrentState = 1
-	set ..LexicalStateHistory = $LB()
+	
+	
 	set ..LexicalStates(1) = 1
 	set ..LexicalStates(1,"{") = 2
 	set ..LexicalStates(2) = 1
@@ -117,7 +117,10 @@ Method %OnNew(directory As %String) As %Status
 
 Method ClearState()
 {
-	set ..CurrentTagNodesStack=""
+	set ..LexicalCurrentState = 1
+	set ..LexicalStateHistory = $LB()
+	
+	set ..CurrentTagNodesList=""
 	set ..IfTagsStack = ""
 	set ..OrderTagsStack = ""
 	set ..TagTypeStack = ""
@@ -128,7 +131,7 @@ Method ClearState()
 Method Render() As %String
 {
 	set documentFile = ##class(%File).NormalizeFilename("word/document.xml", $this.Directory) 
-	set header1File = ##class(%File).NormalizeFilename("word/header1.xml", $this.Directory) 
+
 	// Рендеринг основного документа
 	set error = ..RenderXml(documentFile)
 	if error'="" quit error
@@ -300,21 +303,21 @@ Method LexicalParse(xmlNode) As %String
 					
 					if (i <$length(text)){
 						set newNodeId = ..InsertNodeBefore(.xmlNode,$E(text, 1, i))
-						do ..PushToCurrentTagNodesStack(newNodeId)
+						do ..PushToCurrentTagNodesList(newNodeId)
 						// Оставшийся текст остается в текущем узле
-						do ..ReplaceNode(.xmlNode, xmlNode.LocalName, xmlNode.Namespace, $E(text,i+1,*), xmlNode.QName)
+						do ..ReplaceNode(.xmlNode,$E(text,i+1,*))
 					}
 					else{
-						do ..PushToCurrentTagNodesStack(xmlNode.NodeId) 
+						do ..PushToCurrentTagNodesList(xmlNode.NodeId) 
 					}
 					do ..StoreTagInOneNode()
 				}
 			}
-			elseif ..LexicalCurrentState=2{
-				do ..DeleteCurrentTagNodes()
-				do ..PushToCurrentTagNodesStack(xmlNode.NodeId) 
-			}else{
-				do ..PushToCurrentTagNodesStack(xmlNode.NodeId)
+			else {
+				if ..LexicalCurrentState=2{
+					do ..DeleteCurrentTagNodes()
+				}
+				do ..PushToCurrentTagNodesList(xmlNode.NodeId) 
 			}
 		}
 	}
@@ -334,18 +337,18 @@ Method NextLexicalState(char)
 	}
 }
 
-Method PushToCurrentTagNodesStack(value)
+Method PushToCurrentTagNodesList(value)
 {
 	if '$D(..CurrentTagNodes(value)){
 		s ..CurrentTagNodes(value) = ""
-		$$$PushToStack(..CurrentTagNodesStack, value)
+		$$$PushToStack(..CurrentTagNodesList, value)
 	}
 }
 
 Method DeleteCurrentTagNodes()
 {
 	k ..CurrentTagNodes
-	s ..CurrentTagNodesStack = ""
+	s ..CurrentTagNodesList = ""
 }
 
 /// Перемещает содержимое тэга в первый узел его содержащий
@@ -354,12 +357,12 @@ Method StoreTagInOneNode()
 {
 	if '$D(..CurrentTagNodes) quit
 	// Если тэг в одном узле то выход
-	if $LISTLENGTH(..CurrentTagNodesStack)=1 d ..DeleteCurrentTagNodes() quit
+	if $LISTLENGTH(..CurrentTagNodesList)=1 d ..DeleteCurrentTagNodes() quit
 	do ..WriteDebug("Начало переноса в один тэг")
 	set ptr = 0
 	set nodeId=""
 	
-	set isNotEnd = $LISTNEXT(..CurrentTagNodesStack,ptr,nodeId)
+	set isNotEnd = $LISTNEXT(..CurrentTagNodesList,ptr,nodeId)
 	if 'isNotEnd d ..DeleteCurrentTagNodes() quit
 	
 	set mainNodeId = nodeId
@@ -372,7 +375,7 @@ Method StoreTagInOneNode()
 	catch{}
 	
 	// В цикле собирается весь текст тэга в один XML узел
-	while $LISTNEXT(..CurrentTagNodesStack, ptr, nodeId){
+	while $LISTNEXT(..CurrentTagNodesList, ptr, nodeId){
 		set node = ..XMLDocument.GetNode(nodeId)
 		try{
 			d node.GetText(.nodeText)
@@ -381,7 +384,7 @@ Method StoreTagInOneNode()
 		}
 		set ..ToDeleteNodes(node.NodeId)=""
 	}
-	do ..ReplaceNode(.mainNode, mainNode.LocalName, mainNode.Namespace, nodeText, mainNode.QName)
+	do ..ReplaceNode(.mainNode, nodeText)
 		
 	d ..WriteDebug("Перенесен в один узел "_nodeText)
 	k testText
@@ -615,10 +618,10 @@ Method SeparateTags(node As %XML.Node) As %String
 		set tag = ""
 
 		set start = $LOCATE(text,"\{[%\{].*[%\}]\}", start, end, tag)
-		if start=0 set tagExist=0 quit
+		if start=0 quit
 		// .* - жадный квалификатор
 		// Проверка есть ли внутри найденного текста закрывающая лексема
-		set closeBracket = $S($E(text,start+1)="{":"\}",1:"%")_"\}" // %} или }}
+		set closeBracket = $S($E(text,start+1)="{":"\}",1:"%")_"\}" // closeBracket = %} or }}
 		set closeBracketIndex = $Locate(text, closeBracket,start)
 		// Если есть то укорачиваем найденый текст
 		if (closeBracketIndex'=0) && ((closeBracketIndex + 2) < end){
@@ -633,7 +636,7 @@ Method SeparateTags(node As %XML.Node) As %String
 			do ..InsertNodeBefore(.node, newNodeText)
 			do ..WriteDebug("Текст1: "_text_" разделен на "_newNodeText_" и "_$E(text,start,*))
 			set text=$E(text,start,*)
-			continue 
+			continue
 		}
 		// если есть текст после тэга,  то создается копия узла с текстом  тэга 
 		// копия узла вставляется до текущего тэга
@@ -642,11 +645,11 @@ Method SeparateTags(node As %XML.Node) As %String
 			do ..InsertNodeBefore(.node, tag)
 			do ..WriteDebug("Текст2: "_text_" разделен на "_tag_" и "_$E(text,end,*))
 			set text = $E(text,end,*)
-			continue 
+			continue
 		}
 		set tagExist=0
 	}
-	do ..ReplaceNode(.node, node.LocalName, node.Namespace, text, node.QName)
+	do ..ReplaceNode(.node, text)
 	quit ""
 }
 
@@ -717,13 +720,13 @@ Method SaveNodeAttributes(ByRef node As %XML.Node, ByRef nodeAttributes)
 	}
 }
 
-Method ReplaceNode(ByRef node As %XML.Node, localName As %String, namespase As %String = "", text As %String = "", qname As %String = "")
+Method ReplaceNode(ByRef node As %XML.Node, text As %String = "")
 {
 	set nodeAttributes = ""
 	do ..SaveNodeAttributes(.node, .nodeAttributes)
 	// Пробелы в начале и конце заменяются на неразрывные, иначе они теряются
 	set text = ..Replaceon160(text)
-	do node.ReplaceElement(localName, namespase, text, qname)
+	do node.ReplaceElement(node.LocalName, node.Namespace, text, node.QName)
 	do ..SetAttributesToNode(.node, .nodeAttributes)
 }
 
@@ -841,7 +844,7 @@ Method SyntaxParse(node As %XML.Node) As %String
 		quit "Недопустимый тэг: "_text	
 	}
 	// Удаление текста тэга
-	do ..ReplaceNode(.node, node.LocalName, node.Namespace, "", node.QName)
+	do ..ReplaceNode(.node, "")
 	quit ""
 }
 
