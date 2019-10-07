@@ -13,7 +13,8 @@ ClassMethod LoadTestDocs(directory)
 						"OrderParagraph.docx",
 						"OrderTableColumns.docx",
 						"NestedOrder.docx",
-						"NestedOrderIf.docx"
+						"NestedOrderIf.docx",
+						"HeadersAndFooters.docx"
 	)
 	set ptr=0
 	while $listnext(namesList, ptr, name){
@@ -43,7 +44,8 @@ ClassMethod RunAllTests()
 						"OrderParagraph",
 						"OrderTableColumns",
 						"NestedOrder",
-						"NestedOrderIf"
+						"NestedOrderIf",
+						"HeadersAndFooters"
 	)
 	set ptr=0
 	while $listnext(namesList, ptr, name){
@@ -183,6 +185,21 @@ ClassMethod TestNestedOrderIf() [ ProcedureBlock = 0 ]
 		}
 	}
 	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("NestedOrderIf.docx")
+	quit error
+}
+
+ClassMethod TestHeadersAndFooters() [ ProcedureBlock = 0 ]
+{
+	set top1 = "First page"
+	set bottom = "End of the first page"
+	set top2 = "Second page"
+	set bottom2 = "End of the second page"
+	set topLeft = "Left corner"
+	set topMiddle = "I'm in the middle"
+	set topRight = "Right corner"
+	set top4 = "top3 is missing"
+	set bottom4 = "End of the document"
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("HeadersAndFooters.docx")
 	quit error
 }
 

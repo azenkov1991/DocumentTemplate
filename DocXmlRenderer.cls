@@ -111,39 +111,64 @@ Method %OnNew(directory As %String) As %Status
 	set ..LexicalStates(6) = 4
 	set ..LexicalStates(6,"}") = 1
 	
+
+	quit $$$OK
+}
+
+Method ClearState()
+{
 	set ..CurrentTagNodesStack=""
 	set ..IfTagsStack = ""
 	set ..OrderTagsStack = ""
 	set ..TagTypeStack = ""
 	kill ..CurrentTagNodes, ..ToDeleteNodes, ..IfTags, ..OrderTags
 	kill ..IfSiblings, ..OrderSiblings, ..SkipIfEmptyNodes
-	quit $$$OK
 }
 
 Method Render() As %String
 {
 	set documentFile = ##class(%File).NormalizeFilename("word/document.xml", $this.Directory) 
-	set footer1File = ##class(%File).NormalizeFilename("word/footer1.xml", $this.Directory) 
 	set header1File = ##class(%File).NormalizeFilename("word/header1.xml", $this.Directory) 
 	// Рендеринг основного документа
 	set error = ..RenderXml(documentFile)
 	if error'="" quit error
 	do ..WriteDebug("Основной документ сгенерирован")
-	// Обнуление переменных
-	do ..%OnNew($this.Directory)
-	// Рендеринг футера
-	if ##class(%File).Exists(footer1File){
-		set error = ..RenderXml(footer1File)
-		if error'="" quit error
-		do ..WriteDebug("Футер сгенерирован")
+		
+	// Рендеринг футеров
+	set footerExist = 1
+	set footerCounter = 1
+	while footerExist{
+		set footerFile = ##class(%File).NormalizeFilename("word/footer"_footerCounter_".xml", $this.Directory)
+		if ##class(%File).Exists(footerFile){
+			set error = ..RenderXml(footerFile)
+			if error'="" quit 
+			do ..WriteDebug("Футер сгенерирован")
+			set footerCounter = $I(footerCounter)
+		}
+		else{
+			set footerExist = 0
+		}
 	}
-	do ..%OnNew($this.Directory)
-	// Рендеринг хедера
-	if ##class(%File).Exists(header1File){
-		set error = ..RenderXml(header1File)
-		if error'="" quit error
-		do ..WriteDebug("Хедер сгенерирован")
+	if error'="" quit error
+	
+		
+	// Рендеринг хедеров
+	set headerExist = 1
+	set headerCounter = 1
+	while headerExist{
+		set headerFile = ##class(%File).NormalizeFilename("word/header"_headerCounter_".xml", $this.Directory)
+		if ##class(%File).Exists(headerFile){
+			set error = ..RenderXml(headerFile)
+			if error'="" quit 
+			do ..WriteDebug("Header сгенерирован")
+			set headerCounter = $I(headerCounter)
+		}
+		else{
+			set headerExist = 0
+		}
 	}
+	if error'="" quit error
+	
 	do ..WriteDebug("Рендеринг завршен")
 	quit ""
 }
@@ -152,6 +177,8 @@ Method Render() As %String
 /// Возвращает строку с ошибкой, иначе ""
 Method RenderXml(fullPathToXml As %String) As %String
 {
+	do ..ClearState()
+	
 	//Генерация основного документа xml
 	set docFullFileName = fullPathToXml
 	set xmlReader = ##class(%XML.Reader).%New()
