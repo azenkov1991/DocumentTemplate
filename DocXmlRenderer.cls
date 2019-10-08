@@ -130,6 +130,21 @@ Method ClearState()
 
 Method Render() As %String
 {
+	set documentFileDocx = ##class(%File).NormalizeFilename("word/document.xml", $this.Directory)
+	set documentFileOdt = ##class(%File).NormalizeFilename("content.xml", $this.Directory)
+	if ##class(%File).Exists(documentFileDocx){
+		quit ..RenderDocx()
+	}
+	elseif ##class(%File).Exists(documentFileOdt){
+		quit ..RenderOdt()
+	}
+	else{
+		quit "Не поддерживаемый формат файла"
+	}
+}
+
+Method RenderDocx() As %String
+{
 	set documentFile = ##class(%File).NormalizeFilename("word/document.xml", $this.Directory) 
 
 	// Рендеринг основного документа
@@ -173,6 +188,22 @@ Method Render() As %String
 	if error'="" quit error
 	
 	do ..WriteDebug("Рендеринг завршен")
+	quit ""
+}
+
+Method RenderOdt()
+{
+	set documentFile = ##class(%File).NormalizeFilename("content.xml", $this.Directory) 
+
+	// Рендеринг основного документа
+	set error = ..RenderXml(documentFile)
+	if error'="" quit error
+	do ..WriteDebug("Основной документ сгенерирован")
+	
+	set styleFile = ##class(%File).NormalizeFilename("styles.xml", $this.Directory)
+	set error = ..RenderXml(styleFile)
+	if error'="" quit error
+	do ..WriteDebug("Документ со стилями сгенерирован") 
 	quit ""
 }
 
@@ -287,21 +318,24 @@ Method TraverseXmlTree(ByRef xmlNode As %XML.Node, method1 As %String, method2 A
 /// Возвращает строку с ошибкой, иначе ""
 Method LexicalParse(xmlNode) As %String
 {
+	set text = ""
 	set textExist = 0
 	try{
 		set textExist = xmlNode.GetText(.text, 0 )
 	}
 	catch{	}
+	do ..WriteDebug("Node name "_xmlNode.QName_" "_"Node text: "_text)
 	if textExist && ($G(text)'=""){
 		for i=1:1:$length(text){
 			set char = $E(text,i)
 			d ..NextLexicalState(char)
 			if ..LexicalCurrentState=1{
 				// Если тэг закончен, то он собирается в один узел
-				if $D(..CurrentTagNodes) {
-					// Если в текущем узле еще что-то есть то остаток тэга вставляется позади
+				if ($D(..CurrentTagNodes)) {
 					
+					// Если в текущем узле еще что-то есть то остаток тэга вставляется позади
 					if (i <$length(text)){
+						do ..WriteDebug("It's not the end "_text)
 						set newNodeId = ..InsertNodeBefore(.xmlNode,$E(text, 1, i))
 						do ..PushToCurrentTagNodesList(newNodeId)
 						// Оставшийся текст остается в текущем узле
@@ -423,18 +457,21 @@ Method Processing(ByRef node As %XML.Node) As %String
 			set error = "Ошибка при вычислении условия if: "_..IfSiblings(node.NodeId,"expression")_$C(13,10)_exeption.DisplayString()
 		}
 		if error'="" quit error
+		
+		// Пометка узла с завершающим тэгом на удаление если он пустой
+		set ..SkipIfEmptyNodes(..IfSiblings(node.NodeId))=""
+		
 		// Если условие не выполняется то переход к последнему сиблингу if
 		// т.е пропуск блока внутри if
 		if 'expression{
-			// Пометка узла с завершающим тэгом на удаление если он пустой
 			set node = ..XMLDocument.GetNode(..IfSiblings(node.NodeId))
 			quit ""
 		}else{
-			set ..SkipIfEmptyNodes(..IfSiblings(node.NodeId))=""
 			if ..IsNodeEmpty(node){
 				d node.MoveToNextSibling()
 			}
 		}
+		
 	}
 	if error'="" quit error
 	// обработка order
@@ -682,6 +719,7 @@ Method InsertNodeBefore(ByRef node As %XML.Node, text As %String) As %String
 	// Указатель узла возвращается в то же положение что и был до входа
 	d node.MoveToNextSibling()
 	do ..SetAttributesToNode(.node, .nodeAttributes)
+	do ..WriteDebug("Inserted node before, node name "_node.QName_" , text "_text)
 	quit newNodeId
 }
 
@@ -766,6 +804,7 @@ Method SyntaxParse(node As %XML.Node) As %String
 	set beginOfEndIfRegExp = "\{%"_"\s*"_"(?i)endif(?-i)"
 	set beginOfIfRegExp = "\{%"_"\s*"_"(?i)if(?-i)"
 	set beginOfSetRegExp = "\{%"_"\s*"_"(?i)set(?-i)\s+"
+	
 	// Проверка тэга endorder
 	if $locate(text, beginOfEndOrderRegExp)'=0{
 		set fullEndOrderRegExp = beginOfEndOrderRegExp_"\s*"_"%\}"
@@ -1023,7 +1062,7 @@ Method WriteXmlNode(ByRef xmlNode As %XML.Node)
 
 ClassMethod WriteDebug(string)
 {
-	//write !,string
+	write !,string
 	//set counter = $O(^DocumentPatternLog($J,$H,""),-1)
 	//set ^DocumentPatternLog($J,$H,counter + 1,string)=""
 }

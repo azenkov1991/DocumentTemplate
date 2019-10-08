@@ -4,31 +4,35 @@ Class DocumentTemplate.Test
 /// Load all test documents in the database from the <var>directory</var>
 ClassMethod LoadTestDocs(directory)
 {
-	set namesList = $LB("SimpleTextSubstitution.docx",
-						"ExpressionSubstitution.docx",
-						"IfParagraph.docx",
-						"IfRows.docx",
-						"OrderTableRows.docx",
-						"OrderTableRowsAndColumns.docx",
-						"OrderParagraph.docx",
-						"OrderTableColumns.docx",
-						"NestedOrder.docx",
-						"NestedOrderIf.docx",
-						"HeadersAndFooters.docx"
+	set namesList = $LB("SimpleTextSubstitution",
+						"ExpressionSubstitution",
+						"ExpressionSubstitution",
+						"IfParagraph",
+						"IfRows",
+						"OrderTableRows",
+						"OrderTableRowsAndColumns",
+						"OrderParagraph",
+						"OrderTableColumns",
+						"NestedOrder",
+						"NestedOrderIf",
+						"HeadersAndFooters"
 	)
 	set ptr=0
 	while $listnext(namesList, ptr, name){
-		set existingDocument = ##class(DocumentTemplate.DocumentTemplate).GetDocument(name)
-		if existingDocument{
-			d ##class(DocumentTemplate.DocumentTemplate).%DeleteId(existingDocument.%Id())
-		}
-		set documentFile = ##class(%File).NormalizeFilename(name, directory) 
-		set error = ##class(DocumentTemplate.DocumentTemplate).LoadDocument(documentFile, name, "test")
-		if error'=""{
-			write !,"Error while loading test document "_documentFile_": ",!,"	"_error
-		} 
-		else{
-			write !,"Test document "_documentFile_" is loaded"
+		for extension = "docx","odt"{
+			set fileName = name_"."_extension
+			set existingDocument = ##class(DocumentTemplate.DocumentTemplate).GetDocument(fileName)
+			if existingDocument{
+				d ##class(DocumentTemplate.DocumentTemplate).%DeleteId(existingDocument.%Id())
+			}
+			set documentFile = ##class(%File).NormalizeFilename(fileName, directory) 
+			set error = ##class(DocumentTemplate.DocumentTemplate).LoadDocument(documentFile, fileName, "test")
+			if error'=""{
+				write !,"Error while loading test document "_documentFile_": ",!,"	"_error
+			} 
+			else{
+				write !,"Test document "_documentFile_" is loaded"
+			}
 		}
 	}
 }
@@ -70,6 +74,8 @@ ClassMethod TestSimpleTextSubstitution() [ ProcedureBlock = 0 ]
 	set a = "center of the page"
 	set b = "String width are matter"
 	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("SimpleTextSubstitution.docx")
+	if error'="" quit error
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("SimpleTextSubstitution.odt")
 	quit error
 }
 
@@ -78,6 +84,8 @@ ClassMethod TestExpressionSubstitution() [ ProcedureBlock = 0 ]
 	set a = "First part"
 	set b = "and second part" 
 	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("ExpressionSubstitution.docx")
+	if error '="" quit error
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("ExpressionSubstitution.odt")
 	quit error
 }
 
@@ -91,7 +99,9 @@ ClassMethod TestOrderParagraph() [ ProcedureBlock = 0 ]
 	set paragraph(5) = "Supreme excellence consists of breaking the enemy's resistance without fighting."  
 	set paragraph(6) = "All warfare is based on deception. Hence, when we are able to attack, we must seem unable; when using our forces, we must appear inactive; when we are near, we must make the enemy believe we are far away; when far away, we must make him believe we are near."
 	
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderParagraph.docx")
+	//set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderParagraph.docx")
+	//if error '="" quit error
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderParagraph.odt")
 	quit error
 }
 
@@ -104,6 +114,8 @@ ClassMethod TestOrderTableRows() [ ProcedureBlock = 0 ]
 		set secondColumn(j)="secondRow"_j
 	}
 	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderTableRows.docx")
+	if error'="" quit error
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderTableRows.odt")
 	quit error
 }
 
@@ -120,6 +132,8 @@ ClassMethod TestOrderTableColumns() [ ProcedureBlock = 0 ]
 		set row3(i) = "row3 "_i
 	}
 	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderTableColumns.docx")
+	if error'="" quit error
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderTableColumns.odt")
 	quit error
 }
 
@@ -138,6 +152,8 @@ ClassMethod TestOrderTableRowsAndColumns() [ ProcedureBlock = 0 ]
 ClassMethod TestIfParagraph() [ ProcedureBlock = 0 ]
 {
 	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("IfParagraph.docx")
+	if error '="" quit error
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("IfParagraph.odt")
 	quit error
 }
 
@@ -153,6 +169,8 @@ ClassMethod TestIfRows() [ ProcedureBlock = 0 ]
 		}
 	}
 	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("IfRows.docx")
+	if error '="" quit error
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("IfRows.odt")
 	quit error
 }
 
@@ -175,6 +193,8 @@ ClassMethod TestNestedOrder() [ ProcedureBlock = 0 ]
 		}
 	}
 	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("NestedOrder.docx")
+	if error '="" quit error
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("NestedOrder.odt")
 	quit error
 }
 
@@ -187,6 +207,8 @@ ClassMethod TestNestedOrderIf() [ ProcedureBlock = 0 ]
 		}
 	}
 	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("NestedOrderIf.docx")
+	if error '="" quit error
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("NestedOrderIf.odt")
 	quit error
 }
 
@@ -202,6 +224,8 @@ ClassMethod TestHeadersAndFooters() [ ProcedureBlock = 0 ]
 	set top4 = "top3 is missing"
 	set bottom4 = "End of the document"
 	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("HeadersAndFooters.docx")
+	if error '="" quit error
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("HeadersAndFooters.odt")
 	quit error
 }
 
