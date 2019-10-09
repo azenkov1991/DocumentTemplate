@@ -222,7 +222,7 @@ Method RenderXml(fullPathToXml As %String) As %String
 	
 	set mainDocumentNode = ..XMLDocument.GetNode(..XMLDocument.GetDocumentNode())
 	set ..XMLDocumentMainNodeId = mainDocumentNode.NodeId
-	d ..TraverseXmlTree(.mainDocumentNode,"WriteXmlNode")
+	//d ..TraverseXmlTree(.mainDocumentNode,"WriteXmlNode")
 	
 	// Первый проход по дереву - проверка синтаксиса и перенос лексем в один XML узел
 	// {{ sometext }} {% sometext %}
@@ -307,8 +307,11 @@ Method TraverseXmlTree(ByRef xmlNode As %XML.Node, method1 As %String, method2 A
 	}
 	if $G(error)'="" quit error
 	if method2'=""{
-		set error = $method($this, method2, .xmlNode)
-		if error'="" quit error
+		If node.NodeType=$$$xmlELEMENTNODE{
+			set error = $method($this, method2, .xmlNode)
+			if error'="" quit error
+		}
+		
 	}
 	quit ""
 }
@@ -318,26 +321,33 @@ Method TraverseXmlTree(ByRef xmlNode As %XML.Node, method1 As %String, method2 A
 /// Возвращает строку с ошибкой, иначе ""
 Method LexicalParse(xmlNode) As %String
 {
+	do ..SpecialTreatment(.xmlNode)
 	set text = ""
 	set textExist = 0
 	try{
 		set textExist = xmlNode.GetText(.text, 0 )
 	}
 	catch{	}
-	do ..WriteDebug("Node name "_xmlNode.QName_" "_"Node text: "_text)
+	
+	
+	
+	do ..WriteDebug("Node name "_xmlNode.QName_" Node text: "_text)
 	if textExist && ($G(text)'=""){
 		for i=1:1:$length(text){
 			set char = $E(text,i)
 			d ..NextLexicalState(char)
 			if ..LexicalCurrentState=1{
 				// Если тэг закончен, то он собирается в один узел
-				if ($D(..CurrentTagNodes)) {
+				if ($D(..CurrentTagNodes) && (char="}") ) {
 					
 					// Если в текущем узле еще что-то есть то остаток тэга вставляется позади
+					// Для того чтобы убедиться, что в одном узле не будет двух тэгов
 					if (i <$length(text)){
-						do ..WriteDebug("It's not the end "_text)
 						set newNodeId = ..InsertNodeBefore(.xmlNode,$E(text, 1, i))
+						
+						//do ..DeleteLastNodeFromTagNodeList(xmlNode.NodeId)
 						do ..PushToCurrentTagNodesList(newNodeId)
+						
 						// Оставшийся текст остается в текущем узле
 						do ..ReplaceNode(.xmlNode,$E(text,i+1,*))
 					}
@@ -358,6 +368,28 @@ Method LexicalParse(xmlNode) As %String
 	quit ""
 }
 
+Method SpecialTreatment(ByRef node)
+{
+	if node.QName="text:p"{
+		// Цикл по дочерним узлам
+		// если узел просто текст заменяем его на <text:span>
+		if node.HasChildNodes(){
+			d node.MoveToFirstChild()
+			set siblingsExist = 1
+			while siblingsExist{
+				if node.NodeType=$$$xmlTEXTNODE{
+					w !,node.NodeData
+					do node.ReplaceElement("span", "", node.NodeData, "text:span")
+				}
+				set siblingsExist = node.MoveToNextSibling()
+				
+			}
+			d node.MoveToParent()
+		}
+		
+	}
+}
+
 /// Переход лексического парсера в новое состояние
 Method NextLexicalState(char)
 {
@@ -376,6 +408,14 @@ Method PushToCurrentTagNodesList(value)
 	if '$D(..CurrentTagNodes(value)){
 		s ..CurrentTagNodes(value) = ""
 		$$$PushToStack(..CurrentTagNodesList, value)
+	}
+}
+
+Method DeleteLastNodeFromTagNodeList(value)
+{
+	if $LI(..CurrentTagNodesList,*)=value{
+		set value = $$$PopFromStack(..CurrentTagNodesList)
+		kill ..CurrentTagNodes(value)
 	}
 }
 
@@ -694,6 +734,8 @@ Method SeparateTags(node As %XML.Node) As %String
 /// Возвращает id нового узла
 Method InsertNodeBefore(ByRef node As %XML.Node, text As %String) As %String
 {
+	do ..WriteDebug("Insert node before, node name "_node.QName_" , text "_text)
+	
 	set nodeId = node.NodeId
 	set QName = node.QName
 	set localName = node.LocalName
@@ -719,7 +761,7 @@ Method InsertNodeBefore(ByRef node As %XML.Node, text As %String) As %String
 	// Указатель узла возвращается в то же положение что и был до входа
 	d node.MoveToNextSibling()
 	do ..SetAttributesToNode(.node, .nodeAttributes)
-	do ..WriteDebug("Inserted node before, node name "_node.QName_" , text "_text)
+	
 	quit newNodeId
 }
 
@@ -1054,8 +1096,8 @@ Method WriteXmlNode(ByRef xmlNode As %XML.Node)
 		}
 		catch{	}
 			if textExist && (text'=""){
-				//write !,xmlNode.NodeId,  " Text: of "_xmlNode.QName_" is "_text,
-				 //" length: "_$Length(text)
+				write !,xmlNode.NodeId,  " Text: of "_xmlNode.QName_" is "_text,
+				 " length: "_$Length(text)
 			}
 	quit ""
 }
