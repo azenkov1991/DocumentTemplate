@@ -222,11 +222,13 @@ Method RenderXml(fullPathToXml As %String) As %String
 	
 	set mainDocumentNode = ..XMLDocument.GetNode(..XMLDocument.GetDocumentNode())
 	set ..XMLDocumentMainNodeId = mainDocumentNode.NodeId
-	//d ..TraverseXmlTree(.mainDocumentNode,"WriteXmlNode")
+	d ..TraverseXmlTree(.mainDocumentNode,"WriteXmlNode")
 	
 	// Первый проход по дереву - проверка синтаксиса и перенос лексем в один XML узел
 	// {{ sometext }} {% sometext %}
+	
 	set error = ..TraverseXmlTree(.mainDocumentNode,"LexicalParse")
+	
 	if error'="" quit error
 	
 	// Если стостояние по выходу не 1 то ошибка
@@ -236,6 +238,9 @@ Method RenderXml(fullPathToXml As %String) As %String
 	
 	d ..DeleteMarkedNodes()
 	do ..WriteDebug("Узлы удалены")
+	
+	do ..WriteDebug("Дерево после лексического парсера: ")
+	d ..TraverseXmlTree(.mainDocumentNode,"WriteXmlNode")
 	
 	// Разбивка тэгов по разным узлам
 	set error = ..TraverseXmlTree(.mainDocumentNode,"SeparateTags")
@@ -307,11 +312,8 @@ Method TraverseXmlTree(ByRef xmlNode As %XML.Node, method1 As %String, method2 A
 	}
 	if $G(error)'="" quit error
 	if method2'=""{
-		If node.NodeType=$$$xmlELEMENTNODE{
-			set error = $method($this, method2, .xmlNode)
-			if error'="" quit error
-		}
-		
+		set error = $method($this, method2, .xmlNode)
+		if error'="" quit error
 	}
 	quit ""
 }
@@ -329,9 +331,6 @@ Method LexicalParse(xmlNode) As %String
 	}
 	catch{	}
 	
-	
-	
-	do ..WriteDebug("Node name "_xmlNode.QName_" Node text: "_text)
 	if textExist && ($G(text)'=""){
 		for i=1:1:$length(text){
 			set char = $E(text,i)
@@ -345,7 +344,7 @@ Method LexicalParse(xmlNode) As %String
 					if (i <$length(text)){
 						set newNodeId = ..InsertNodeBefore(.xmlNode,$E(text, 1, i))
 						
-						//do ..DeleteLastNodeFromTagNodeList(xmlNode.NodeId)
+						do ..DeleteLastNodeFromTagNodeList(xmlNode.NodeId)
 						do ..PushToCurrentTagNodesList(newNodeId)
 						
 						// Оставшийся текст остается в текущем узле
@@ -378,7 +377,6 @@ Method SpecialTreatment(ByRef node)
 			set siblingsExist = 1
 			while siblingsExist{
 				if node.NodeType=$$$xmlTEXTNODE{
-					w !,node.NodeData
 					do node.ReplaceElement("span", "", node.NodeData, "text:span")
 				}
 				set siblingsExist = node.MoveToNextSibling()
@@ -386,7 +384,13 @@ Method SpecialTreatment(ByRef node)
 			}
 			d node.MoveToParent()
 		}
-		
+	}
+	if node.QName="text:s"{
+		set spaceCount = node.GetAttributeValue("c")
+		if spaceCount'>0 set spaceCount=1
+		set replaceStr = ""
+		for i=1:1:spaceCount set replaceStr=replaceStr_" "
+		do node.ReplaceCharacter(replaceStr)
 	}
 }
 
@@ -456,6 +460,7 @@ Method StoreTagInOneNode()
 		}
 		catch{
 		}
+		do ..WriteDebug("Узел помечен на удаление: "_node.NodeId)
 		set ..ToDeleteNodes(node.NodeId)=""
 	}
 	do ..ReplaceNode(.mainNode, nodeText)
@@ -464,6 +469,7 @@ Method StoreTagInOneNode()
 	k testText
 	k nodeText
 	d ..DeleteCurrentTagNodes()
+	
 	do ..WriteDebug("Перенос завршен")
 }
 
@@ -472,10 +478,16 @@ Method DeleteMarkedNodes()
 {
 	set nodeId=""
 	for{
-		set nodeId = $Order(..ToDeleteNodes(nodeId))
+		set nodeId = $Order(..ToDeleteNodes(nodeId),-1)
 		quit:nodeId=""
-	try{d ..XMLDocument.GetNode(nodeId).Remove()}
-	catch{}
+	try{
+		set node = ..XMLDocument.GetNode(nodeId)
+		do node.Remove()
+		do ..WriteDebug("Узел "_node.NodeId_" "_nodeId_ "удален")	
+	}
+	catch error{
+		do ..WriteDebug(error.Name_" "_error.Location)
+	}
 
 	}
 }
@@ -1096,15 +1108,14 @@ Method WriteXmlNode(ByRef xmlNode As %XML.Node)
 		}
 		catch{	}
 			if textExist && (text'=""){
-				write !,xmlNode.NodeId,  " Text: of "_xmlNode.QName_" is "_text,
-				 " length: "_$Length(text)
+				do ..WriteDebug(xmlNode.NodeId_" Name: "_xmlNode.QName_"; text: "_text)
 			}
 	quit ""
 }
 
 ClassMethod WriteDebug(string)
 {
-	write !,string
+	//write !,string
 	//set counter = $O(^DocumentPatternLog($J,$H,""),-1)
 	//set ^DocumentPatternLog($J,$H,counter + 1,string)=""
 }
