@@ -15,7 +15,9 @@ ClassMethod LoadTestDocs(directory)
 						"OrderTableColumns",
 						"NestedOrder",
 						"NestedOrderIf",
-						"HeadersAndFooters"
+						"HeadersAndFooters",
+						"RowCounter",
+						"ListAndTable"
 	)
 	set ptr=0
 	while $listnext(namesList, ptr, name){
@@ -49,7 +51,9 @@ ClassMethod RunAllTests()
 						"OrderTableColumns",
 						"NestedOrder",
 						"NestedOrderIf",
-						"HeadersAndFooters"
+						"HeadersAndFooters",
+						"RowCounter",
+						"ListAndTable"
 	)
 	set ptr=0
 	while $listnext(namesList, ptr, name){
@@ -62,6 +66,18 @@ ClassMethod RunAllTests()
 			write !, "Template "_name_" is rendered successfully"
 		}
 	}
+}
+
+ClassMethod GetTestStrings(ByRef var)
+{
+	
+	kill var
+	set var(1) = "Appear weak when you are strong, and strong when you are weak"
+	set var(2) = "The supreme art of war is to subdue the enemy without fighting"
+	set var(3) = "If you know the enemy and know yourself, you need not fear the result of a hundred battles. If you know yourself but not the enemy, for every victory gained you will also suffer a defeat. If you know neither the enemy nor yourself, you will succumb in every battle."
+	set var(4) = "Let your plans be dark and impenetrable as night, and when you move, fall like a thunderbolt."
+	set var(5) = "Supreme excellence consists of breaking the enemy's resistance without fighting."  
+	set var(6) = "All warfare is based on deception. Hence, when we are able to attack, we must seem unable; when using our forces, we must appear inactive; when we are near, we must make the enemy believe we are far away; when far away, we must make him believe we are near."
 }
 
 ClassMethod TestSimpleTextSubstitution() [ ProcedureBlock = 0 ]
@@ -91,16 +107,10 @@ ClassMethod TestExpressionSubstitution() [ ProcedureBlock = 0 ]
 
 ClassMethod TestOrderParagraph() [ ProcedureBlock = 0 ]
 {
-	kill paragraph
-	set paragraph(1) = "Appear weak when you are strong, and strong when you are weak"
-	set paragraph(2) = "The supreme art of war is to subdue the enemy without fighting"
-	set paragraph(3) = "If you know the enemy and know yourself, you need not fear the result of a hundred battles. If you know yourself but not the enemy, for every victory gained you will also suffer a defeat. If you know neither the enemy nor yourself, you will succumb in every battle."
-	set paragraph(4) = "Let your plans be dark and impenetrable as night, and when you move, fall like a thunderbolt."
-	set paragraph(5) = "Supreme excellence consists of breaking the enemy's resistance without fighting."  
-	set paragraph(6) = "All warfare is based on deception. Hence, when we are able to attack, we must seem unable; when using our forces, we must appear inactive; when we are near, we must make the enemy believe we are far away; when far away, we must make him believe we are near."
-	
-	//set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderParagraph.docx")
-	//if error '="" quit error
+	do ..GetTestStrings(.paragraph)
+
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderParagraph.docx")
+	if error '="" quit error
 	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderParagraph.odt")
 	quit error
 }
@@ -226,6 +236,26 @@ ClassMethod TestHeadersAndFooters() [ ProcedureBlock = 0 ]
 	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("HeadersAndFooters.docx")
 	if error '="" quit error
 	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("HeadersAndFooters.odt")
+	quit error
+}
+
+ClassMethod TestRowCounter() [ ProcedureBlock = 0 ]
+{
+	do ..GetTestStrings(.rows)
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("RowCounter.docx")
+	if error '="" quit error
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("RowCounter.odt")
+	quit error
+}
+
+ClassMethod TestListAndTable() [ ProcedureBlock = 0 ]
+{
+	do ..GetTestStrings(.rows)
+	set header = "Example of generating document"
+	
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("ListAndTable.docx")
+	if error '="" quit error
+	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("ListAndTable.odt")
 	quit error
 }
 
