@@ -1,40 +1,40 @@
 ﻿Include %sySystem
 
-/// Класс <CLASS>DocumentPatterns</CLASS> представляет собой шаблон документа Word 
-/// <p>^DocumentTemplateSettings - глобал для хранения настроек фукционала шаблонов документов</p>
-/// <p>^DocumentTemplateSettings("workingDirectory") - рабочая директория для экспорта, импорта файлов. По умолчанию install-dir\mgr\Temp</p>
-/// <p>^DocumentTemplateSettings("zipCommand") - команда для создания zip архива(принимает имя файла, директорию)</p>
-/// <p>^DocumentTemplateSettings("unzipCommand") - команда для распаковки zip архива(принимает имя файла, директорию)</p>
-/// <p> Команды упаковки, распаковки должны содержать слова $Fullfilename и $Directory для замены</p>
-/// <p> При запаковке команда запаковки выполняется относительно директории распакованного документа </p>
-/// <p> Пример для windows 7z </p>
+/// Class <CLASS>DocumentPatterns</CLASS> represents a template of docs or odt document
+/// <p>^DocumentTemplateSettings - global for settgins </p>
+/// <p>^DocumentTemplateSettings("workingDirectory") - working directory for export/import files. By default: install-dir\mgr\Temp</p>
+/// <p>^DocumentTemplateSettings("zipCommand") - system command for making zip archive (take filename and directory)</p>
+/// <p>^DocumentTemplateSettings("unzipCommand") - system command for unzipping (take filename and directory)</p>
+/// <p> Zip/unzip commands must contain words $Fullfilename and $Directory for replacing with actual filename and directory name </p>
+/// <p> zip command is executed in directory of unpacked document </p>
+/// <p> Example for windows 7z </p>
 /// <p> ^DocumentTemplateSettings("zipCommand")="""C:\Program Files\7-Zip\7z.exe"" a -y $Fullfilename $Directory\*"</p>
 /// <p> ^DocumentTemplateSettings("unzipCommand")="""C:\Program Files\7-Zip\7z.exe"" x -y -o$Directory $Fullfilename"</p>
-/// <p> пример для линукса zip unzip</p>
+/// <p> Example for linux zip unzip</p>
 /// <p> unzip -u -q -d $Directory  $Fullfilename </p>
 /// <p> zip -r -u -q $Fullfilename ./*</p>
-/// <p>^DocumentTemplateSettings("maxOrderIterations") - для защиты от бесконечных циклов, максимальное количество допустипух итераций в цикле
+/// <p>^DocumentTemplateSettings("maxOrderIterations") - for protection against infinite loops, maximum iterations in order loop. 128000 by default
 Class DocumentTemplate.DocumentTemplate Extends %Persistent
 {
 
-/// Сам документ docx 
+/// Document binary content 
 Property Content As %Stream.GlobalBinary [ Required ];
 
-/// Группа шаблона документа
+/// Group of templates
 Property Group As %String;
 
-/// Имя документа
+/// Filename
 Property Filename As %String;
 
-/// Описание документа
+/// Document description
 Property Description As %String(MAXLEN = 512);
 
-/// Дата, время загрузки
+/// Datetime of loading
 Property DateTime As %DateTime [ Required ];
 
 Index Name On Filename [ Unique ];
 
-/// Получить документ по именни файла и группы
+/// Get document by name and group name
 ClassMethod GetDocument(name As %String) As DocumentTemplate.DocumentTemplate
 {
 	set doc = ##class(DocumentTemplate.DocumentTemplate).NameOpen(name, 2, .sc)
@@ -46,12 +46,12 @@ ClassMethod GetDocument(name As %String) As DocumentTemplate.DocumentTemplate
 	}
 }
 
-/// Загрузка файла в таблицу с шаблонами
-/// <var>fullFulename</var> - полный путь к фалу
-/// <var>group</var> - группа шаблона
+/// Load template in database
+/// <var>fullFulename</var> - full filename of the document
+/// <var>name</var> - name of template in database
+/// <var>group</var> - group of template
 ClassMethod LoadDocument(fullFilename As %String, name As %String, group As %String = "default", description As %String = "") As %String
 {
-	// поток для чтения документа
 	set stream=##class(%Stream.FileBinary).%New()
 	set newDocument=##class(DocumentTemplate.DocumentTemplate).%New()
 	set sc=stream.LinkToFile(fullFilename)
@@ -67,7 +67,7 @@ ClassMethod LoadDocument(fullFilename As %String, name As %String, group As %Str
 	quit ""
 }
 
-/// Загрузка документа из глобала
+/// Load document from global
 ClassMethod LoadDocumentFromGlobal(masRef, name, group As %String = "default") As %String
 {
 	set newDocument=##class(DocumentTemplate.DocumentTemplate).%New()
@@ -83,12 +83,13 @@ ClassMethod LoadDocumentFromGlobal(masRef, name, group As %String = "default") A
 	quit ""
 }
 
-/// <var>templateName</var> - имя шаблона
-/// <var>masRef</var> - ссылка на массив для сгенерированного документа
-/// <var>deleteFile</var> - удалять ли сгенерированный файл в рабочей директории после сохранения в глобал
+/// Render document template to  private global
+/// <var>templateName</var>
+/// <var>masRef</var> - global reference 
+/// <var>deleteFile</var> - remove rendered document in working directory 
 ClassMethod RenderDocumentToPrivateGlobal(templateName As %String, masRef As %String = "^||RenderedDocument", deleteFile As %Boolean = 0)
 {
-	if masRef'["^||" quit "masRef - должен быть private global"
+	if masRef'["^||" quit "masRef - must be private global reference"
 	k @masRef	
 	
 	set renderedFilename = $Replace($H,",","-")_"-"_$J_"-"_documentTemplate.Filename
@@ -97,7 +98,7 @@ ClassMethod RenderDocumentToPrivateGlobal(templateName As %String, masRef As %St
 	set error = ..RenderDocument(templateName, fullRenderedFilename)
 	if error '="" quit error
 	
-	// Копирование документа в массив
+	// Copy document to global
 	set stream=##class(%Stream.FileBinary).%New()
 	set sc=stream.LinkToFile(fullRenderedFilename)
 	if $$$ISERR(sc)  quit $system.OBJ.DisplayError(sc) 
@@ -105,35 +106,35 @@ ClassMethod RenderDocumentToPrivateGlobal(templateName As %String, masRef As %St
 	set sc = streamTo.CopyFromAndSave(stream)
 	if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc) 
 	
-	// Удаление документа 
+	// Delete document 
 	if deleteFile=1{
 		d ##class(%File).ComplexDelete(fullRenderedFilename)
-		d ..WriteDebug("Удаление файла "_fullRenderedFilename)
+		d ..WriteDebug("Delete file "_fullRenderedFilename)
 	}
 	quit ""
 }
 
-/// Функция создания документа на основе шаблона
-/// <var>templateName</var> - имя шаблона
-/// <var>renderedFilename</var> - имя сгенерированного документа в рабочей директории
+/// Render document template
+/// <var>templateName</var>
+/// <var>renderedFilename</var> - name of rendered document in working directory
 ClassMethod RenderDocument(templateName As %String, renderedFilename As %String = "") As %String
 {
 	
 	set documentTemplate = ##class(DocumentTemplate.DocumentTemplate).GetDocument(templateName)
-	if documentTemplate="" quit "Темплейт с именем "_templateName_" не найден"
+	if documentTemplate="" quit "Template with name  "_templateName_" not found"
 	
 	set workingDirectory = $Get(^DocumentTemplateSettings("workingDirectory"),$Get(^%SYS("TempDir")))
 	
 	if workingDirectory=""{
-		quit "Не задана рабочая директрия ^DocumentTemplateSettings(""workingDirectory"")"
+		quit "The working directory is not set. s ^DocumentTemplateSettings(""workingDirectory"")=""your working directory"""
 	}
 	set created = ##class(%File).CreateDirectoryChain(workingDirectory)
 	if created'=1{
-		quit "Ошибка при создании рабочей директории"
+		quit "Can't create working directory"
 	}
-	d ..WriteDebug("Рабочая директория существует")
+	d ..WriteDebug("Working directory exists")
 	
-	//Копирование шаблона документа в рабочую директорию если его еще нет
+	//Copy template in working directory if it doesn't exist
 	set templateFilename = $Replace($ZDTH(documentTemplate.DateTime,3,3),",","-")_"-"_documentTemplate.Filename
 	
 	
@@ -143,17 +144,17 @@ ClassMethod RenderDocument(templateName As %String, renderedFilename As %String 
 		if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc)
 	}
 	
-	// Имя директории для распаковки: датавремя_распаковки_шаблона-$J-имяфайла
+	// Directory name for unpacking: unpackin_datetime-$J-templatename
 	set unpackDirectory = $Replace($H,",","-")_"-"_$J_"-"_$Replace(documentTemplate.Filename,".","-")
 	set fullUnpackDirectory = ##class(%File).NormalizeFilename(unpackDirectory, workingDirectory)
 	
 	set sc = ..Unpack(templateFullFilename, fullUnpackDirectory)
 	if sc'="" d ..WriteDebug(sc) quit sc
-	d ..WriteDebug("Документ распакован")
+	d ..WriteDebug("Template unpacked")
 	set error = ##class(DocumentTemplate.DocXmlRenderer).%New(fullUnpackDirectory).Render()
-	if error'="" d ..WriteDebug("Ошибка при обработке шаблона "_error) quit error
+	if error'="" d ..WriteDebug("Error while template processing "_error) quit error
 
-	// Запаковка сгенерированного документа
+	// Pack rendered document
 	if $G(renderedFilename)="" {
 		set renderedFilename = $Replace($H,",","-")_"-"_$J_"-"_documentTemplate.Filename
 	}
@@ -166,14 +167,14 @@ ClassMethod RenderDocument(templateName As %String, renderedFilename As %String 
 
 	quit ""
 clean
-	// Удаление распакованной директории
+	// Delete directory of unpacked template
 	do ##class(%File).RemoveDirectoryTree(fullUnpackDirectory)
-	d ..WriteDebug("Удаление директории "_fullUnpackDirectory)
+	d ..WriteDebug("Remove directory "_fullUnpackDirectory)
 
 	quit
 }
 
-/// Распаковка документа на диске в директорию
+/// Unpack document in directory 
 ClassMethod Unpack(fullFilename As %String, directory As %String) As %String
 {
 	set zipCommand = ..GetUnzipCommand(fullFilename, directory)
@@ -199,7 +200,7 @@ ClassMethod Unpack(fullFilename As %String, directory As %String) As %String
 	quit ""
 }
 
-/// Упаковка документа 
+/// Pack document
 ClassMethod Pack(directory As %String, fullFilename As %String) As %Status
 {
 	set zipCommand = ..GetZipCommand(fullFilename, directory)
@@ -224,8 +225,8 @@ ClassMethod Pack(directory As %String, fullFilename As %String) As %Status
 	quit $$$OK
 }
 
-/// Метод берет ^DocumentTemplateSettings("zipCommand") и вставляет параметры
-/// Возвращает команду упаковки файлов из директории <var>directory</var> в файл <var>fullFilename</var>
+/// Method takes ^DocumentTemplateSettings("zipCommand") and insert fullfilename and directory
+/// Return  command for pack <var>directory</var> in file <var>fullFilename</var>
 ClassMethod GetZipCommand(fullFilename, directory)
 {
 	set zipCommand = $Replace($Get(^DocumentTemplateSettings("zipCommand")), "$Directory", directory)
@@ -233,8 +234,8 @@ ClassMethod GetZipCommand(fullFilename, directory)
 	quit zipCommand
 }
 
-/// Метод берет ^DocumentTemplateSettings("unzipCommand") и вставляет параметры
-/// Возвращает команду распаковки файлов из файла <var>fullFilename</var> в директорию <var>directory</var> в 
+/// Method takes ^DocumentTemplateSettings("unzipCommand") and insert fullfilename and directory
+/// Return command for unpack file <var>fullFilename</var> in directory <var>directory</var> 
 ClassMethod GetUnzipCommand(fullFilename, directory)
 {
 	set zipCommand = $Replace($Get(^DocumentTemplateSettings("unzipCommand")), "$Directory", directory)
@@ -242,9 +243,9 @@ ClassMethod GetUnzipCommand(fullFilename, directory)
 	quit zipCommand
 }
 
-/// Копирование документа из базы на диск
-/// <var>directory</var> - директория куда выполнить копирование
-/// <var>filename</var> - имя файла 
+/// Copy template from database in directory
+/// <var>directory</var> 
+/// <var>filename</var>
 Method CopyOnDisk(directory As %String, filename As %String = "") As %Status
 {
 	if filename="" set filename = ..Filename
@@ -259,8 +260,9 @@ Method CopyOnDisk(directory As %String, filename As %String = "") As %Status
 
 ClassMethod WriteDebug(string)
 {
-	write !,string
+	//write !,string
 	//set counter = $O(^DocumentPatternLog($J,$H,""),-1)
 	//set ^DocumentPatternLog($J,$H,counter + 1,string)=""
 }
 
+}

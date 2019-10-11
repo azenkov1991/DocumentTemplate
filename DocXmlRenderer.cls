@@ -1,33 +1,33 @@
 ﻿Include DocumentTemplate.General
 
-/// Выполняет генерацию шаблона документа docx распакованного в директорию <var>Directory</var>
-/// При парсинге лексический парсер выполняет последовательно проход по символам документа
-/// На каждом символе происходит выбор нового состояния в зависимости от текущего состояния и символа
-/// Начальное состояние 1 -  Между тэгами. На поседнем символе должно быть состояние 1, иначе ошибка
-/// <p>Состояния лексического парсера:  </p>
-/// <p>  1 Между тэгами  </p>
+/// Render document template (docx or odt) unpacked in direcotry  <var>Directory</var>
+/// Lexical parser successively passes through character of the xml document
+/// On each character it chooses a new state according to current state and table of states transitions
+/// Initial state is  1 -  between tags. On last character the state must be equal to 1, otherwise error occured
+/// <p>Lexical parser states:  </p>
+/// <p>  1 Between tags  </p>
 /// <p>  "{" - 2  </p>
 /// <p>  - 1  </p>
-/// <p>  2 Найден первый символ тэга "{"  </p>
+/// <p>  2 First tag character was found "{"  </p>
 /// <p>  "{" - 3  </p>
 /// <p>  "%" - 4  </p>
 /// <p>  - 1  </p>
-/// <p>  3 Внутри тэга {{ }}  </p>
+/// <p>  3 Inside the tag {{ }}  </p>
 /// <p>  "}" - 5  </p>
 /// <p>  - 3  </p>
-/// <p>  4 Внутри тэга {% %}  </p>
+/// <p>  4 Inside the tag {% %}  </p>
 /// <p>  "%" - 6  </p>
 /// <p>  - 4  </p>
-/// <p>  5 Первый сивол закрывающегося тэга {{ }}  </p>
+/// <p>  5 First character } of closing braces {{ }}  </p>
 /// <p>  "}" - 1  </p>
 /// <p>  - 3  </p>
-/// <p>  6 Первый сивол закрывающегося тэга {% %}  </p>
+/// <p>  6 First character % of closing braces {% %}  </p>
 /// <p>  "}" - 1 </p>
 /// <p>  - 4  </p>
 Class DocumentTemplate.DocXmlRenderer Extends %RegisteredObject
 {
 
-/// Директория распакованного документа
+/// Unpacked document directory
 Property Directory As %String;
 
 /// XML.Document
@@ -37,59 +37,59 @@ Property XMLDocumentMainNodeId As %String;
 
 Property XMLWriter As %XML.Writer;
 
-/// Карта переходов лексического парсера
+/// States map 
 Property LexicalStates [ MultiDimensional ];
 
-/// Текущее состояние 
+/// Current state
 Property LexicalCurrentState;
 
-/// История состояний
+/// States history
 Property LexicalStateHistory As %List;
 
-/// Информация о текущем тэге
-/// хранит информацию о всех узла xml в котором этот тэг присутствует
-/// Весь тэг будет перенесен в перый узел, остальные будут удалены
+/// Store xml node ids of current tag
+/// Whole tag wil be moved to the first node
 Property CurrentTagNodes [ MultiDimensional ];
 
+/// Store xml node ids of current tag as a list
 Property CurrentTagNodesList As %List;
 
-/// Узлы помеченые на удаление
-/// Во время обхода нельзя удалять узлы, так как ломается путь обхода
+/// Nodes marked for deleting
 Property ToDeleteNodes [ MultiDimensional ];
 
-/// Массив для хранения тэгов if
+/// store  'if' tags
 /// IfTags(startTagNodeId) = endTagNodeId
-/// IfTags(startTagNodeId, "expression") = "Выражение условия тэга" 
+/// IfTags(startTagNodeId, "expression") = "conditional expression" 
 Property IfTags [ MultiDimensional ];
 
-/// Стэк для хранения вложенности if-ов
+/// Stack for nested 'if' tags
 Property IfTagsStack As %List;
 
-/// Массив для хранения тэгов order 
+/// Store order-tags
 /// OrderTags(startTagNodeId) = endTagNodeId
-/// OrderTags(startTagNodeId, "mas") = "Имя узла который обходим"
-/// OrderTags(startTagNodeId, "index") = "Имя переменной, которую использовать для обхода узла"
+/// OrderTags(startTagNodeId, "mas") = "Name of the global"
+/// OrderTags(startTagNodeId, "index") = "index variable for passing through global nodes"
 Property OrderTags [ MultiDimensional ];
 
-/// Стэк для хранения вложенных order-ов
+/// Stack for nested 'order' tags
 Property OrderTagsStack As %List;
 
-/// Для хранения тэга order или if
-/// Используется чтобы отловить ошибку закрытия не того тэга
+/// Store 'order' or 'if' tags
+/// Using for catching error
 Property TagTypeStack As %String;
 
-/// Массив для хранения тэгов set
+/// Store set-tag
 /// setTags(setTagNodeId) = ""
-/// setTags(setTagNodeId, "variable") = "Переменная, в которую присваевается значение"
-/// setTags(setTagNodeId, "expression") = "Вычисляемое выражение"
+/// setTags(setTagNodeId, "variable") = "variable for assignment"
+/// setTags(setTagNodeId, "expression") = "expression"
 Property SetTags [ MultiDimensional ];
 
-/// Массивы хранения сиблингов 
+/// Store if-siblings 
 Property IfSiblings [ MultiDimensional ];
 
+/// Store order sibling
 Property OrderSiblings [ MultiDimensional ];
 
-/// для хранения узлов помеченных на удаление, если они пустые
+/// Store nodes marked for deletion if they are empty
 Property SkipIfEmptyNodes [ MultiDimensional ];
 
 Method %OnNew(directory As %String) As %Status
@@ -139,7 +139,7 @@ Method Render() As %String
 		quit ..RenderOdt()
 	}
 	else{
-		quit "Не поддерживаемый формат файла"
+		quit "Unsupported file format"
 	}
 }
 
@@ -147,12 +147,12 @@ Method RenderDocx() As %String
 {
 	set documentFile = ##class(%File).NormalizeFilename("word/document.xml", $this.Directory) 
 
-	// Рендеринг основного документа
+	// Render main document
 	set error = ..RenderXml(documentFile)
 	if error'="" quit error
-	do ..WriteDebug("Основной документ сгенерирован")
+	do ..WriteDebug("Main document is rendered")
 		
-	// Рендеринг футеров
+	// Render footers
 	set footerExist = 1
 	set footerCounter = 1
 	while footerExist{
@@ -160,7 +160,7 @@ Method RenderDocx() As %String
 		if ##class(%File).Exists(footerFile){
 			set error = ..RenderXml(footerFile)
 			if error'="" quit 
-			do ..WriteDebug("Футер сгенерирован")
+			do ..WriteDebug("Footer is rendered")
 			set footerCounter = $I(footerCounter)
 		}
 		else{
@@ -170,7 +170,7 @@ Method RenderDocx() As %String
 	if error'="" quit error
 	
 		
-	// Рендеринг хедеров
+	// Render headers
 	set headerExist = 1
 	set headerCounter = 1
 	while headerExist{
@@ -178,7 +178,7 @@ Method RenderDocx() As %String
 		if ##class(%File).Exists(headerFile){
 			set error = ..RenderXml(headerFile)
 			if error'="" quit 
-			do ..WriteDebug("Header сгенерирован")
+			do ..WriteDebug("Header rendered")
 			set headerCounter = $I(headerCounter)
 		}
 		else{
@@ -187,7 +187,7 @@ Method RenderDocx() As %String
 	}
 	if error'="" quit error
 	
-	do ..WriteDebug("Рендеринг завршен")
+	do ..WriteDebug("render complete")
 	quit ""
 }
 
@@ -195,25 +195,24 @@ Method RenderOdt()
 {
 	set documentFile = ##class(%File).NormalizeFilename("content.xml", $this.Directory) 
 
-	// Рендеринг основного документа
+	// Render main document
 	set error = ..RenderXml(documentFile)
 	if error'="" quit error
-	do ..WriteDebug("Основной документ сгенерирован")
+	do ..WriteDebug("Main document is rendered")
 	
 	set styleFile = ##class(%File).NormalizeFilename("styles.xml", $this.Directory)
 	set error = ..RenderXml(styleFile)
 	if error'="" quit error
-	do ..WriteDebug("Документ со стилями сгенерирован") 
+	do ..WriteDebug("Style documnet is rendered") 
 	quit ""
 }
 
-/// Генерация документа
-/// Возвращает строку с ошибкой, иначе ""
+/// Render xml 
+/// Return error string or "" if no errors occured
 Method RenderXml(fullPathToXml As %String) As %String
 {
 	do ..ClearState()
 	
-	//Генерация основного документа xml
 	set docFullFileName = fullPathToXml
 	set xmlReader = ##class(%XML.Reader).%New()
 	set sc = xmlReader.OpenFile(docFullFileName)
@@ -224,34 +223,35 @@ Method RenderXml(fullPathToXml As %String) As %String
 	set ..XMLDocumentMainNodeId = mainDocumentNode.NodeId
 	d ..TraverseXmlTree(.mainDocumentNode,"WriteXmlNode")
 	
-	// Первый проход по дереву - проверка синтаксиса и перенос лексем в один XML узел
+	// First passing through the tree - check the syntax and  move lexem in one xml node 
 	// {{ sometext }} {% sometext %}
 	
 	set error = ..TraverseXmlTree(.mainDocumentNode,"LexicalParse")
 	
 	if error'="" quit error
 	
-	// Если стостояние по выходу не 1 то ошибка
-	if "3,5" [..LexicalCurrentState quit "Незакрытый тэг {{ }}"
-	if "4,6" [..LexicalCurrentState  quit "Незакрытый тэг {% %}"
-	do ..WriteDebug("Разбор на лексемы завершен")
+	// If state is not equal to 1 then error occured
+	if "3,5" [..LexicalCurrentState quit "Unclosed tag {{ }}"
+	if "4,6" [..LexicalCurrentState  quit "Unclosed tag {% %}"
+	do ..WriteDebug("Lexical parsing is completed")
 	
 	d ..DeleteMarkedNodes()
-	do ..WriteDebug("Узлы удалены")
+	do ..WriteDebug("Nodes was deleted")
 	
-	do ..WriteDebug("Дерево после лексического парсера: ")
+	do ..WriteDebug("Tree after parsing: ")
 	d ..TraverseXmlTree(.mainDocumentNode,"WriteXmlNode")
 	
-	// Разбивка тэгов по разным узлам
+	// Separate tags in one xml node into individual nodes
 	set error = ..TraverseXmlTree(.mainDocumentNode,"SeparateTags")
 	if error'="" quit error
-	do ..WriteDebug("Завершена разбивка тэга по узлам")
+	do ..WriteDebug("Separating is completed")
 	
-	// Провевка синтаксиса и нахождение тэгов order,if, set
+	// Check syntax and find tags order,if, set
 	set error = ..TraverseXmlTree(.mainDocumentNode,"SyntaxParse")
 	if error'="" quit error
-	do ..WriteDebug("Завершен синтаксический разбор документа")
-	// Проверка незакрытых тэгов
+	do ..WriteDebug("Syntax parsing is completed")
+	
+	// Check unclosed tags
 	set unclosedIf = 0, unclosedOrder=0, nodeId=""
 	if $length(..OrderTagsStack)'=0{
 		set unclosedOrder = 1
@@ -268,16 +268,18 @@ Method RenderXml(fullPathToXml As %String) As %String
 			d node.GetText(.tagText, 0)
 		}
 		catch{}
-		quit "Незакрытый тэг "_$S(unclosedOrder:"Order",1:"If")_": "_ tagText
+		quit "Unclosed tag "_$S(unclosedOrder:"Order",1:"If")_": "_ tagText
 	}
 		
-	// Обработка массивв IfTags и OrderTags
-	// Нахождение сиблингов для повторения и условного вывода
+	// Processing IfTags and OrderTags
+	
+	// Find siblings for repetition in order loop
 	do ..FindSiblings($Name(..OrderTags), $Name(..OrderSiblings))
+	// Find siblings for repetition in if loop
 	do ..FindSiblings($Name(..IfTags), $Name(..IfSiblings))
 	
 	
-	// Запись результата в файл
+	// Write result
 	d xmlReader.Close()
 	set ..XMLWriter = ##class(%XML.Writer).%New()
 	set ..XMLWriter.Charset="UTF-8"
@@ -291,11 +293,11 @@ Method RenderXml(fullPathToXml As %String) As %String
 	quit ""
 }
 
-/// Обход узла Xml <var>xmlNode</var> вглубину, слева на право, вызов метода <var> method </var на каждом узле
-/// <var>method </var> должен принимать XmlNode
-/// <var>method1</var> - вызывается до обхода дочерних элементов
-/// <var>method2</var> - вызывается после обхода дочерних элементов
-/// Возвращает строку с ошибкой, иначе ""
+/// Pass through  <var>xmlNode</var> from left to right calling  <var> method </var on each node
+/// <var>method </var> takes xml node as an argument
+/// <var>method1</var> - calling before child elements
+/// <var>method2</var> - calling after child elements
+/// Return string with error or "" if  no error occured
 Method TraverseXmlTree(ByRef xmlNode As %XML.Node, method1 As %String, method2 As %String = "") As %String
 {
 	set error = $method($this, method1, .xmlNode)
@@ -318,9 +320,9 @@ Method TraverseXmlTree(ByRef xmlNode As %XML.Node, method1 As %String, method2 A
 	quit ""
 }
 
-/// Метод для использования в функции TraverseXmlTree
-/// Ищет ключевые тэги, сохраняет в стэке их местоположения, проверяет на ошибки 
-/// Возвращает строку с ошибкой, иначе ""
+/// Method is used as TraverseXmlTree argument
+/// Find tags, store in stack their position
+/// Return string with error or "" if  no error occured
 Method LexicalParse(xmlNode) As %String
 {
 	do ..SpecialTreatment(.xmlNode)
@@ -336,18 +338,18 @@ Method LexicalParse(xmlNode) As %String
 			set char = $E(text,i)
 			d ..NextLexicalState(char)
 			if ..LexicalCurrentState=1{
-				// Если тэг закончен, то он собирается в один узел
+				// if end of the tag was found assemble the tag in one xml node
 				if ($D(..CurrentTagNodes) && (char="}") ) {
 					
-					// Если в текущем узле еще что-то есть то остаток тэга вставляется позади
-					// Для того чтобы убедиться, что в одном узле не будет двух тэгов
+					// if something else in the node put tag characters before
+					// to ensure that there is no different tags parts in one node
 					if (i <$length(text)){
 						set newNodeId = ..InsertNodeBefore(.xmlNode,$E(text, 1, i))
 						
 						do ..DeleteLastNodeFromTagNodeList(xmlNode.NodeId)
 						do ..PushToCurrentTagNodesList(newNodeId)
 						
-						// Оставшийся текст остается в текущем узле
+						// All the rest stay in current node
 						do ..ReplaceNode(.xmlNode,$E(text,i+1,*))
 					}
 					else{
@@ -370,8 +372,8 @@ Method LexicalParse(xmlNode) As %String
 Method SpecialTreatment(ByRef node)
 {
 	if node.QName="text:p"{
-		// Цикл по дочерним узлам
-		// если узел просто текст заменяем его на <text:span>
+		// Loop through child nodes
+		// characer nodes replaced with <text:span>
 		if node.HasChildNodes(){
 			d node.MoveToFirstChild()
 			set siblingsExist = 1
@@ -386,6 +388,7 @@ Method SpecialTreatment(ByRef node)
 		}
 	}
 	if node.QName="text:s"{
+		// <text:s> replaced with spaces
 		set spaceCount = node.GetAttributeValue("c")
 		if spaceCount'>0 set spaceCount=1
 		set replaceStr = ""
@@ -394,14 +397,13 @@ Method SpecialTreatment(ByRef node)
 	}
 }
 
-/// Переход лексического парсера в новое состояние
 Method NextLexicalState(char)
 {
-	// Переход по карте переходов
+	// Take next state from state table
 	if $D(..LexicalStates(..LexicalCurrentState,char)){
 		set ..LexicalCurrentState = ..LexicalStates(..LexicalCurrentState,char)
 	}
-	// Если символа в таблице переходов нет, то переход в состояние по умолчанию
+	// If there is no state then go to the default state
 	else {
 		set ..LexicalCurrentState = ..LexicalStates(..LexicalCurrentState)
 	}
@@ -434,9 +436,9 @@ Method DeleteCurrentTagNodes()
 Method StoreTagInOneNode()
 {
 	if '$D(..CurrentTagNodes) quit
-	// Если тэг в одном узле то выход
+	// If tag in one xml node there's nothing to do
 	if $LISTLENGTH(..CurrentTagNodesList)=1 d ..DeleteCurrentTagNodes() quit
-	do ..WriteDebug("Начало переноса в один тэг")
+	do ..WriteDebug("Begin tag moving")
 	set ptr = 0
 	set nodeId=""
 	
@@ -452,7 +454,7 @@ Method StoreTagInOneNode()
 	}
 	catch{}
 	
-	// В цикле собирается весь текст тэга в один XML узел
+	// tag assemle in nodeText 
 	while $LISTNEXT(..CurrentTagNodesList, ptr, nodeId){
 		set node = ..XMLDocument.GetNode(nodeId)
 		try{
@@ -460,20 +462,18 @@ Method StoreTagInOneNode()
 		}
 		catch{
 		}
-		do ..WriteDebug("Узел помечен на удаление: "_node.NodeId)
+		do ..WriteDebug("Node marked for deletion: "_node.NodeId)
 		set ..ToDeleteNodes(node.NodeId)=""
 	}
 	do ..ReplaceNode(.mainNode, nodeText)
 		
-	d ..WriteDebug("Перенесен в один узел "_nodeText)
+	do ..WriteDebug("Assembling tag in one node is completed. Tag: "_nodeText)
+
 	k testText
 	k nodeText
 	d ..DeleteCurrentTagNodes()
-	
-	do ..WriteDebug("Перенос завршен")
 }
 
-/// Удаляет помеченные на удаление узлы
 Method DeleteMarkedNodes()
 {
 	set nodeId=""
@@ -483,7 +483,7 @@ Method DeleteMarkedNodes()
 	try{
 		set node = ..XMLDocument.GetNode(nodeId)
 		do node.Remove()
-		do ..WriteDebug("Узел "_node.NodeId_" "_nodeId_ "удален")	
+		do ..WriteDebug("Node "_node.NodeId_" "_nodeId_ "deleted")	
 	}
 	catch error{
 		do ..WriteDebug(error.Name_" "_error.Location)
@@ -492,29 +492,29 @@ Method DeleteMarkedNodes()
 	}
 }
 
-/// Рекурсивный обход узлов XML с записью узлов в файл
-/// Обработка тэгов if order set 
+/// Traverse XML and writing nodes 
+/// Processing 'if' 'order' and 'set' tags
 Method Processing(ByRef node As %XML.Node) As %String
 {
-	// Обработка if
+	// processing if
 	set error =""
 	set expression=1
 	if ($D(..IfSiblings(node.NodeId))){
 		
 		try{
 			set expression = ..EvaluateExpression(..IfSiblings(node.NodeId,"expression"))
-			d ..WriteDebug("Условие "_..IfSiblings(node.NodeId,"expression")_" "_expression)
+			d ..WriteDebug("Condition "_..IfSiblings(node.NodeId,"expression")_" "_expression)
 		}
 		catch exeption{
-			set error = "Ошибка при вычислении условия if: "_..IfSiblings(node.NodeId,"expression")_$C(13,10)_exeption.DisplayString()
+			set error = "Erroe while 'if' condition evaluating : "_..IfSiblings(node.NodeId,"expression")_$C(13,10)_exeption.DisplayString()
 		}
 		if error'="" quit error
 		
-		// Пометка узла с завершающим тэгом на удаление если он пустой
+		// Mark node with closing tag for deleting if it empty
 		set ..SkipIfEmptyNodes(..IfSiblings(node.NodeId))=""
 		
-		// Если условие не выполняется то переход к последнему сиблингу if
-		// т.е пропуск блока внутри if
+		// If condition is false go to last sibling
+		// i.e skip block inside 'if'
 		if 'expression{
 			set node = ..XMLDocument.GetNode(..IfSiblings(node.NodeId))
 			quit ""
@@ -526,42 +526,42 @@ Method Processing(ByRef node As %XML.Node) As %String
 		
 	}
 	if error'="" quit error
-	// обработка order
-	// ..OrderSiblings(node.NodeId,"calculating")=1 - пометка что этот узел уже обрабатывается
-	// иначе будет бесконечный цикл
+	// processing 'order'
+	// ..OrderSiblings(node.NodeId,"calculating")=1 - mark that node under processing
+	// otherwise infinite loop occour
 	if ($D(..OrderSiblings(node.NodeId))&&($G(..OrderSiblings(node.NodeId,"calculating"))'=1)){
 		set endSiblingNodeId = ..OrderSiblings(node.NodeId)
 		set startSiblingNodeId = node.NodeId
 		set indexRef = ..OrderSiblings(node.NodeId,"index")
 		set masRef = ..OrderSiblings(node.NodeId,"mas")
 		s ..OrderSiblings(startSiblingNodeId, "calculating")=1
-		do ..WriteDebug("Цикл по массиву "_masRef_" "_indexRef)
+		do ..WriteDebug("Loop through array "_masRef_" "_indexRef)
 		do ..DeclareIndex(indexRef)
-		// Цикл по индексу
+		//Loop through array using declared index
 		set infiniteLoopProtector = 0
 		for{
 			try{
 				set index = ..OrderMas(masRef, indexRef)
 				set infiniteLoopProtector = infiniteLoopProtector + 1
-				do ..WriteDebug("Внутри массива "_masRef_" индекс "_indexRef_" "_index)
+				do ..WriteDebug("Inside the array "_masRef_" index "_indexRef_" "_index)
 			}
 			catch exeption{
-				set error = "Ошибка при обходе массива: "_..OrderSiblings(node.NodeId,"mas")_$C(13,10)_exeption.DisplayString()
+				set error = "Error while order processing: "_..OrderSiblings(node.NodeId,"mas")_$C(13,10)_exeption.DisplayString()
 			}
 			quit:index=""
 			quit:error'=""
 			if infiniteLoopProtector > $G(^DocumentPatternSettings("maxOrderIterations"),"128000"){
-				set error="Защита от бесконечного цикла, количество итераций превысило "_$G(^DocumentPatternSettings("maxOrderIterations"),"128000")
+				set error="Infinite loop protection, number of iterations is more than "_$G(^DocumentPatternSettings("maxOrderIterations"),"128000")
 				quit
 			}
 			set siblingsExist = 1
-			// Если начальный сиблинг с тэгом пустой то его не надо копировать
+			// Skip first sibling if it is empty
 			if ..IsNodeEmpty(node){
 				set siblingsExist = node.MoveToNextSibling()
 			}
-			// Цикл по сиблингам
+			// loop through siblings
 			while siblingsExist{
-				// Если завершающий сиблинг с тэгом пустой то его пропускаем
+				// Skip last sibling if it is empty
 				if node.NodeId=endSiblingNodeId && ..IsNodeEmpty(node){
 					quit
 				}
@@ -570,36 +570,36 @@ Method Processing(ByRef node As %XML.Node) As %String
 				set siblingsExist = node.MoveToNextSibling()
 			}
 			quit:error'=""
-			// Перед следующим повторением возвращаем узел на место
+			// Before the next repetition go to the first sibling
 			set node = ..XMLDocument.GetNode(startSiblingNodeId)
 		}
 		quit:error'="" error
 		s ..OrderSiblings(startSiblingNodeId, "calculating")=0
 		do ..KillIndex(indexRef)
-		// После цикла for выход, текущим узлом становится последний сиблинг
+		// After the order the last sibling became current node
 		set node = ..XMLDocument.GetNode(endSiblingNodeId)
 		quit ""
 	}
 	if error'="" quit error
 	
-	// Обработка тэга set
+	// Processing set
 	if ($D(..SetTags(node.NodeId)))
 	{
 		try{
 			set value = ..EvaluateExpression(..SetTags(node.NodeId,"expression"))
 		}
 		catch exeption{
-			set error = "Ошибка при вычислении выражения set: "_..SetTags(node.NodeId,"expression")_$C(13,10)_exeption.DisplayString()
+			set error = "Error while evaluating 'set' expression : "_..SetTags(node.NodeId,"expression")_$C(13,10)_exeption.DisplayString()
 		}
 		quit:error'="" error
 		try{
 			d ..SetVariable(..SetTags(node.NodeId,"variable"),value)
 		}
 		catch exeption{
-			set error = "Ошибка при присваивании переменной: "_..SetTags(node.NodeId,"variable")_$C(13,10)_exeption.DisplayString()
+			set error = "Error while variable assignment: "_..SetTags(node.NodeId,"variable")_$C(13,10)_exeption.DisplayString()
 		}
 	}
-	// Пропуск узлов, помеченных на пропуск если они пустые
+	// Skip nodes marked as empty
 	if $D(..SkipIfEmptyNodes(node.NodeId))&&..IsNodeEmpty(node) quit ""
 	set error = ..WriteAndEvaluateNode1(node)
 	if error'="" quit error
@@ -619,7 +619,7 @@ Method Processing(ByRef node As %XML.Node) As %String
 	quit ""
 }
 
-/// Рекурсивная запись узла XML в файл, для использования в функции TraverseXml
+/// Write xml node and evaluate it. Used as  TraverseXml argument
 Method WriteAndEvaluateNode1(node As %XML.Node)
 {
 	if node.QName="" quit ""
@@ -633,7 +633,7 @@ Method WriteAndEvaluateNode1(node As %XML.Node)
 	
 	if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc)
 	set attributeName = node.FirstAttributeName()
-	//Запись всех атрибутов 
+	//Write all attributes
 	while attributeName'=""{
 		set name = node.GetAttributeQName(attributeName)
 		set value = node.GetAttributeValue(attributeName)
@@ -648,14 +648,14 @@ Method WriteAndEvaluateNode1(node As %XML.Node)
 	}
 	catch{	}
 	if textExist{
-		// если это выражение, оно вычисляется
+		// if expression then evaluate it
 		if $match(text,"\{\{.+\}\}"){
 			set expression= $ZSTRIP($P($P(text,"{{",2),"}}",1),"<>W")
 			try{
 				set result = ..EvaluateExpression(expression)
 			}
 			catch exeption{
-				set error="Ошибка при вычислении выражения: "_expression_$C(13,10)_exeption.DisplayString()
+				set error="Error while evaluating expression: "_expression_$C(13,10)_exeption.DisplayString()
 			}
 			if error'="" quit error
 			if $E(result,1,6)="XMLMOD"{
@@ -673,7 +673,7 @@ Method WriteAndEvaluateNode1(node As %XML.Node)
 	quit error
 }
 
-/// Окончание записи узла XML
+/// End of writing xml node. Used as TraverseXml argument
 Method WriteAndEvaluateNode2(node As %XML.Node)
 {
 	if node.QName="" quit ""
@@ -686,10 +686,8 @@ Method WriteAndEvaluateNode2(node As %XML.Node)
 	quit ""
 }
 
-/// Выделяет тэг в отдельный XML узел, для использования в TraverseXML
 Method SeparateTags(node As %XML.Node) As %String
 {
-	// Поиск тэга
 	set textExist=0
 	set text = ""
 	try{
@@ -701,38 +699,39 @@ Method SeparateTags(node As %XML.Node) As %String
 	if start=0 quit ""
 	set tagExist=1
 	while tagExist{
-		//Нахождение самого тэга
+		//finding tag
 		set start = 0
 		set end = 0
 		set tag = ""
 
 		set start = $LOCATE(text,"\{[%\{].*[%\}]\}", start, end, tag)
 		if start=0 quit
-		// .* - жадный квалификатор
-		// Проверка есть ли внутри найденного текста закрывающая лексема
+		// .* - greedy qualifier
+		// find inside text closing lexem
 		set closeBracket = $S($E(text,start+1)="{":"\}",1:"%")_"\}" // closeBracket = %} or }}
 		set closeBracketIndex = $Locate(text, closeBracket,start)
-		// Если есть то укорачиваем найденый текст
+		
+		// if closing lexem was found shorten it
 		if (closeBracketIndex'=0) && ((closeBracketIndex + 2) < end){
 			set end = closeBracketIndex + 2
 			set tag = $E(text,start, end-1)
 		}
-		// если до тэга есть текст, то создается копия узла с текстом до тэга 
-		// копия узла вставляется до текущего тэга
-		// оставшийся текст остается в текущем узле
+		
+		// insert text before tag into the xml node before
+		// all the rest remains in current node
 		if start>1{
 			set newNodeText = $E(text,1,start-1)
 			do ..InsertNodeBefore(.node, newNodeText)
-			do ..WriteDebug("Текст1: "_text_" разделен на "_newNodeText_" и "_$E(text,start,*))
+			do ..WriteDebug("Text1: "_text_" splitted on "_newNodeText_" and "_$E(text,start,*))
 			set text=$E(text,start,*)
 			continue
 		}
-		// если есть текст после тэга,  то создается копия узла с текстом  тэга 
-		// копия узла вставляется до текущего тэга
-		// оставшийся текст остается в текущем узле
+		// if characters after tag exists  then insert the copy of xml node with tag before the current node 
+		// all the rest remains in current node
+		
 		if end '> $L(text){
 			do ..InsertNodeBefore(.node, tag)
-			do ..WriteDebug("Текст2: "_text_" разделен на "_tag_" и "_$E(text,end,*))
+			do ..WriteDebug("Text2: "_text_" splitted on "_tag_" and "_$E(text,end,*))
 			set text = $E(text,end,*)
 			continue
 		}
@@ -742,8 +741,8 @@ Method SeparateTags(node As %XML.Node) As %String
 	quit ""
 }
 
-/// Вставляет Копию XML узла перед данным узлом с заданым текстом
-/// Возвращает id нового узла
+/// Insert copy of xml node before  with given text
+/// Return id of the new node
 Method InsertNodeBefore(ByRef node As %XML.Node, text As %String) As %String
 {
 	do ..WriteDebug("Insert node before, node name "_node.QName_" , text "_text)
@@ -753,7 +752,6 @@ Method InsertNodeBefore(ByRef node As %XML.Node, text As %String) As %String
 	set localName = node.LocalName
 	set namespace = node.Namespace
 	
-	// копирование всех атрибутов в nodeAtributes, после вставки нового узла они теряются
 	set nodeAttributes = ""
 	do ..SaveNodeAttributes(.node, .nodeAttributes)
 	
@@ -762,24 +760,21 @@ Method InsertNodeBefore(ByRef node As %XML.Node, text As %String) As %String
 	set text = ..Replaceon160(text)
 	set newNodeId = node.InsertElement(localName, namespace, nodeId, text, QName)
 	
-	// Возврат на текущий узел
+	// Back on current node
 	set node = ..XMLDocument.GetNode(newNodeId)
 	
-	
-	// Копирование всех атрибутов в старый и новый узел
 	set attributeName = ""
 	do ..SetAttributesToNode(.node, .nodeAttributes)
 
-	// Указатель узла возвращается в то же положение что и был до входа
+	// Node wil be the same as before
 	d node.MoveToNextSibling()
 	do ..SetAttributesToNode(.node, .nodeAttributes)
 	
 	quit newNodeId
 }
 
-/// Установка узлу атрибутов
-/// node - узел
-/// nodeAttributes - массив с атрибутами
+/// Set node attributes
+/// nodeAttributes - array of node attributes
 Method SetAttributesToNode(ByRef node As %XML.Node, ByRef nodeAttributes)
 {
 	set attributeName = ""
@@ -794,7 +789,7 @@ Method SetAttributesToNode(ByRef node As %XML.Node, ByRef nodeAttributes)
 	}
 }
 
-/// Сохранение атрибутов узла Node в массив nodeAttributes
+/// Save node attributes in array nodeAttributes
 Method SaveNodeAttributes(ByRef node As %XML.Node, ByRef nodeAttributes)
 {
 	set attributeName = node.FirstAttributeName()
@@ -816,13 +811,12 @@ Method ReplaceNode(ByRef node As %XML.Node, text As %String = "")
 {
 	set nodeAttributes = ""
 	do ..SaveNodeAttributes(.node, .nodeAttributes)
-	// Пробелы в начале и конце заменяются на неразрывные, иначе они теряются
+	// ending space replaced whith nonbreaking space
 	set text = ..Replaceon160(text)
 	do node.ReplaceElement(node.LocalName, node.Namespace, text, node.QName)
 	do ..SetAttributesToNode(.node, .nodeAttributes)
 }
 
-/// Замена пробелов в начале и конце на неразрывные пробелы
 Method Replaceon160(text)
 {
 	if $E(text)=" "{
@@ -834,8 +828,8 @@ Method Replaceon160(text)
 	quit text
 }
 
-/// Синтаксический парсер. Для использования в функции TraverseXml
-/// Проверяет правильность использования тэгов и сохраняет информацию о тэгах
+/// Syntax parsers. Used as  TraverseXml argument
+/// Check the sytax, saves tag information
 Method SyntaxParse(node As %XML.Node) As %String
 {
 	set textExist = 0
@@ -859,58 +853,58 @@ Method SyntaxParse(node As %XML.Node) As %String
 	set beginOfIfRegExp = "\{%"_"\s*"_"(?i)if(?-i)"
 	set beginOfSetRegExp = "\{%"_"\s*"_"(?i)set(?-i)\s+"
 	
-	// Проверка тэга endorder
+	// Check 'endorder' tag
 	if $locate(text, beginOfEndOrderRegExp)'=0{
 		set fullEndOrderRegExp = beginOfEndOrderRegExp_"\s*"_"%\}"
 		set isEndOrderCorrect = $match(text, fullEndOrderRegExp)
-		if 'isEndOrderCorrect quit "Некорректный ситаксис тэга endorder: "_text
+		if 'isEndOrderCorrect quit "Incorrect sytax of  'endorder' tag: "_text
 		set currentTagType = $$$PopFromStack(..TagTypeStack)
-		if currentTagType="" quit "Неожиданное появление тэга endorder, должен предшествовать тэг order"
-		if currentTagType'="order" quit "Неожиданное появление тэга endorder, ожидалось завершение тэга "_currentTagType
+		if currentTagType="" quit "Unexpected 'endorder', must be preceded by 'order'"
+		if currentTagType'="order" quit "Unexpected 'endorder', expecting closing of "_currentTagType
 		set orderTagNodeId = ..PopFromOrderStack()
 		set ..OrderTags(orderTagNodeId) = node.NodeId
 	}
 	
-	// Проверка тэга Order
+	// Check 'Order' tag
 	
 	elseif $locate(text,beginOfOrderRegExp,0)'=0{
 		set fullOrderRegExp = beginOfOrderRegExp_"\s+"_anyVariableRegExp_"\s+"_variableRegExp_"\s*"_"%\}"
 		set isOrderCorrect = $match(text, fullOrderRegExp)
-		if 'isOrderCorrect quit "Некорректный синтаксис тэга Order: "_text
+		if 'isOrderCorrect quit "Incorrect sytax of  'order' tag: "_text
 		$$$PushToStack(..TagTypeStack,"order")
 		d ..PushToOrderStack(node.NodeId)
-		// Поиск имени массива
-		// Пропуск order
+		// find array name
+		// Skip order
 		set val = "", start = 0
 		set start = $locate(text, beginOfOrderRegExp_"\s+", start , end, val)
 		set start = end
 		set start = $locate(text, anyVariableRegExp, start ,end , val)
 		set start = end
 		set ..OrderTags(node.NodeId,"mas") = val
-		// Поиск индекса
+		// find index
 		set start = $locate(text, variableRegExp, start , end, val)
 		set ..OrderTags(node.NodeId,"index") = val
 	}
 	
-	// Проверка тэга endif
+	// Check 'endif' tag
 	
 	elseif $locate(text, beginOfEndIfRegExp, 0)'=0{
 		set fullEndIfRegExp = beginOfEndIfRegExp_"\s*"_"%\}"
 		set isEndifCorrect = $match(text, fullEndIfRegExp)
-		if 'isEndifCorrect quit "Некорректный синтаксис тэга endif:"_text
+		if 'isEndifCorrect quit "Incorrect sytax of  'endif' tag: "_text
 		set currentTagType = $$$PopFromStack(..TagTypeStack)
-		if currentTagType="" quit "Неожиданное появление тэга endif, должен предшествовать тэг if"
-		if currentTagType'="if" quit "Неожиданное появление тэга endif, ожидалось завершение тэга "_currentTagType
+		if currentTagType="" quit "Unexpected 'endif', must be preceded by 'if'"
+		if currentTagType'="if" quit "НUnexpected 'endif', expecting closing of  "_currentTagType
 		set ifTagNodeId = ..PopFromIfStack()
 		set ..IfTags(ifTagNodeId) = node.NodeId
 	}
 	
-	// Проверка тэга if
+	// Check 'if' tag
 	
 	elseif $locate(text,beginOfIfRegExp,0)'=0{
 		set fullIfRegExp = beginOfIfRegExp_"\s+"_".+"_"\s*"_"%\}"
 		set isIfCorrect = $match(text, fullIfRegExp)
-		if 'isIfCorrect quit "Некорректный синтаксис тэга If: "_text
+		if 'isIfCorrect quit "Incorrect sytax of  'if' tag: "_text
 		$$$PushToStack(..TagTypeStack,"if")
 		d ..PushToIfStack(node.NodeId)
 		set ..IfTags(node.NodeId) = ""
@@ -923,7 +917,7 @@ Method SyntaxParse(node As %XML.Node) As %String
 	elseif $locate(text, beginOfSetRegExp,0)'=0{
 		set fullSetRegExp = beginOfSetRegExp_variableRegExp_"\s*=\s*"_".+"_"\s*"_"%\}"
 		set isSetCorrect = $match(text, fullSetRegExp)
-		if 'isSetCorrect quit "Некорректный синтаксис тэга set: "_text
+		if 'isSetCorrect quit "Incorrect sytax of  'set' tag: "_text
 		set setVariable=""
 		set val = "", start = 0
 		set start = $locate(text, beginOfSetRegExp, start , end, val)
@@ -934,16 +928,16 @@ Method SyntaxParse(node As %XML.Node) As %String
 		set ..SetTags(node.NodeId,"expression") = setExpression
 	}
 	else{
-		quit "Недопустимый тэг: "_text	
+		quit "Unknown tag: "_text	
 	}
-	// Удаление текста тэга
+	// Delete text of the tag
 	do ..ReplaceNode(.node, "")
 	quit ""
 }
 
-/// Поиск узлов сиблингов для повторения или условного вывод
-/// ref - ссылка на массив с узлос тэгов
-/// refResult - ссылка на массив с результатами
+/// Find siblings for repetition or conditional output
+/// ref - array reference  with xml nodes in which tags is contained
+/// refResult - result array referece with xml nodes which will be repeated in the future or skipped in case of 'if' tag processing
 Method FindSiblings(ref, refResult)
 {
 	set firstNodeId = ""
@@ -965,13 +959,13 @@ Method FindSiblings(ref, refResult)
 			}
 			set siblingsExist = node.MoveToNextSibling()
 		}
-		// Копирование параметров тэга
+		// Copy tag parameters
 	    merge @refResult@(firstSiblingNodeId) = @ref@(firstNodeId)
 	    set @refResult@(firstSiblingNodeId) = lastSiblingNodeId 
 	}
 }
 
-/// Проверяет является ли узел или его подузлы пустыми
+/// Check if the node and his children are empty
 Method IsNodeEmpty(node As %XML.Node) As %Boolean
 {
 	set result = ..TraverseXmlTree(node, "NodeEmptyForTraverse","")
@@ -1000,26 +994,26 @@ ClassMethod ReplaceHtmlSymbols(string)
 	quit newString
 }
 
-/// Функция вычисления выражения в глобальном пространстве имен
+/// Evaluate expression in global namespace
 ClassMethod EvaluateExpression(expression) [ ProcedureBlock = 0 ]
 {
-	do ..WriteDebug("Вычисляю выражение "_expression)
-	// Замена доковских кавычек на обычные,
-	set expression = $Replace(expression,"”","""")
-	set expression = $Replace(expression,"“","""")
-	set expression = $Replace(expression,"’","'")
+	do ..WriteDebug("Evaluate expression "_expression)
+	// Replace quotes with ordinary quotes ,
+	set expression = $Replace(expression,$C(8221),"""")
+	set expression = $Replace(expression,$C(8220),"""")
+	set expression = $Replace(expression,$C(8217),"'")
 	set expression = $xecute("quit "_expression)
 	quit $Replace(expression,"_"," ")
 }
 
-/// Объявление индекса для обхода в глобальном пространстве имен
+/// Declare index in global namespace
 ClassMethod DeclareIndex(indexRef) [ ProcedureBlock = 0 ]
 {
-	do ..WriteDebug("объявлен индекс "_indexRef)
+	do ..WriteDebug("Declare index "_indexRef)
 	set @indexRef=""
 }
 
-///  Применение функции Order в глобальном пространстве имен
+///  Apply order in global namespace
 ClassMethod OrderMas(masRef, indexRef) [ ProcedureBlock = 0 ]
 {
 	set @indexRef = $Order(@masRef@(@indexRef))
@@ -1028,18 +1022,18 @@ ClassMethod OrderMas(masRef, indexRef) [ ProcedureBlock = 0 ]
 
 ClassMethod KillIndex(indexRef) [ ProcedureBlock = 0 ]
 {
-	do ..WriteDebug("Убит индекс "_indexRef)
+	do ..WriteDebug("Index is killed "_indexRef)
 	k @indexRef
 }
 
-/// присваивание значения в глобальном пространстве имен
+/// Assinging in global namespace
 ClassMethod SetVariable(variableRef, value) [ ProcedureBlock = 0 ]
 {
-	do ..WriteDebug("Установка переменной "_variableRef_" ="_value)
+	do ..WriteDebug("Set variable "_variableRef_" ="_value)
 	set @variableRef = value
 }
 
-/// Возвращает узел общего предка двух XML узлов или "" если они не имеют
+/// Return CommonAnscestor of two xml nodes or "" if they don't have one
 ClassMethod GetCommonAnscestor(node1 As %XML.Node, node2 As %XML.Node) As %XML.Node
 {
 	set node = node1.%ConstructClone()
