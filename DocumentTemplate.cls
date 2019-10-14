@@ -179,22 +179,22 @@ ClassMethod Unpack(fullFilename As %String, directory As %String) As %String
 {
 	set zipCommand = ..GetUnzipCommand(fullFilename, directory)
 	if zipCommand=""{
-		quit "Не задана команда распаковки архива ^DocumentTemplateSettings(""unzipCommand"")"
+		quit "Command for unzip is not set: set ^DocumentTemplateSettings(""unzipCommand"")=""your command"""
 	}
 	
 	set created = ##class(%File).CreateDirectoryChain(directory)
 	if 'created{
-		quit "Ошибка создания директории для распаковки шаблона "
+		quit "Error while creating directory for upacking template "
 	}
-	// Сохранение текущей директории
+	// Save current directory
 	set curDir = ##class(%SYSTEM.Process).CurrentDirectory()
 	do ##class(%SYSTEM.Process).CurrentDirectory(directory)
 	set sc = $ZF(-1, zipCommand)
-	if sc'=0{
+	if sc>1{
 		d ##class(%SYSTEM.Process).CurrentDirectory(curDir)
-		quit "Ошибка при распаковке"
+		quit "Error while unpacking"
 	}
-	// Восстановление текущей директории 
+	// Restore current directory
 	d ##class(%SYSTEM.Process).CurrentDirectory(curDir)
 	
 	quit ""
@@ -205,22 +205,22 @@ ClassMethod Pack(directory As %String, fullFilename As %String) As %Status
 {
 	set zipCommand = ..GetZipCommand(fullFilename, directory)
 	if zipCommand=""{
-		quit $$$ERROR($$$GeneralError,"Не задана команда распаковки архива ^DocumentTemplateSettings(""unzipCommand"")")
+		quit $$$ERROR($$$GeneralError,"Command for zip is not set: ^DocumentTemplateSettings(""zipCommand"")")
 	}
 	
 	set exists = ##class(%File).Exists(directory)
 	if 'exists{
-		quit $$$ERROR($$$GeneralError, "Директория не существует ")
+		quit $$$ERROR($$$GeneralError, "Error directory doesn't exist ")
 	}
-	// Сохранение текущей директории
+	// Save current directory
 	set curDir = ##class(%SYSTEM.Process).CurrentDirectory()
 	do ##class(%SYSTEM.Process).CurrentDirectory(directory)
 	set sc = $ZF(-1, zipCommand)
-	if sc'=0{
+	if sc>1{
 		d ##class(%SYSTEM.Process).CurrentDirectory(curDir)
-		quit $$$ERROR($$$GeneralError, "Ошибка при упаковке документа")
+		quit $$$ERROR($$$GeneralError, "Error while packing")
 	}
-	// Восстановление текущей директории 
+	// Restore current directory 
 	d ##class(%SYSTEM.Process).CurrentDirectory(curDir)
 	quit $$$OK
 }
