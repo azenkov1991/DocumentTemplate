@@ -39,7 +39,7 @@ ClassMethod LoadTestDocs(directory)
 	}
 }
 
-ClassMethod RunAllTests()
+ClassMethod RunAllTests(directory = "", extension = "")
 {
 	set namesList = $LB("SimpleTextSubstitution",
 						"ExpressionSubstitution",
@@ -57,13 +57,37 @@ ClassMethod RunAllTests()
 	)
 	set ptr=0
 	while $listnext(namesList, ptr, name){
-		set error = $classmethod("DocumentTemplate.Test", "Test"_name)
+		do ..RunTest(name, directory, extension)
+	}
+}
+
+ClassMethod RunTest(testName, directory = "", extension = "") [ ProcedureBlock = 0 ]
+{
+	//create context for test
+	do $classmethod("DocumentTemplate.Test", "Test"_testName)
+	
+	if extension=""{
+		set extensionList=$LB("docx","odt")
+	}
+	else{
+		set extensionList=$LB(extension)
+	}
+	set ptr=0
+	while $listnext(extensionList, ptr, extension){
+		set templateFilename = testName_"."_extension
+		if directory'=""{
+			set templateFullFilename = ##class(%File).NormalizeFilename(templateFilename, directory)
+			set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocumentFromTemplate(templateFullFilename)
+		}
+		else{
+			set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument(templateFilename)
+		}
 		if error'=""{
-			write !, "Error while rendering template "_name
+			write !, "Error while rendering template "_testName
 			write !,error
 		}
 		else {
-			write !, "Template "_name_" is rendered successfully"
+			write !, "Template "_testName_" is rendered successfully"
 		}
 	}
 }
@@ -89,30 +113,17 @@ ClassMethod TestSimpleTextSubstitution() [ ProcedureBlock = 0 ]
 	set title = "Simple example of text substitution"
 	set a = "center of the page"
 	set b = "String width are matter"
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("SimpleTextSubstitution.docx")
-	if error'="" quit error
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("SimpleTextSubstitution.odt")
-	quit error
 }
 
 ClassMethod TestExpressionSubstitution() [ ProcedureBlock = 0 ]
 {
 	set a = "First part"
-	set b = "and second part" 
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("ExpressionSubstitution.docx")
-	if error '="" quit error
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("ExpressionSubstitution.odt")
-	quit error
+	set b = "and second part"
 }
 
 ClassMethod TestOrderParagraph() [ ProcedureBlock = 0 ]
 {
 	do ..GetTestStrings(.paragraph)
-
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderParagraph.docx")
-	if error '="" quit error
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderParagraph.odt")
-	quit error
 }
 
 ClassMethod TestOrderTableRows() [ ProcedureBlock = 0 ]
@@ -123,10 +134,6 @@ ClassMethod TestOrderTableRows() [ ProcedureBlock = 0 ]
 	for j=1:1:10{
 		set secondColumn(j)="secondRow"_j
 	}
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderTableRows.docx")
-	if error'="" quit error
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderTableRows.odt")
-	quit error
 }
 
 ClassMethod TestOrderTableColumns() [ ProcedureBlock = 0 ]
@@ -141,10 +148,6 @@ ClassMethod TestOrderTableColumns() [ ProcedureBlock = 0 ]
 	for i=1:1:3{
 		set row3(i) = "row3 "_i
 	}
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderTableColumns.docx")
-	if error'="" quit error
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderTableColumns.odt")
-	quit error
 }
 
 ClassMethod TestOrderTableRowsAndColumns() [ ProcedureBlock = 0 ]
@@ -155,16 +158,10 @@ ClassMethod TestOrderTableRowsAndColumns() [ ProcedureBlock = 0 ]
 			set table(i,j)="r "_i_"c "_j
 		}
 	}
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("OrderTableRowsAndColumns.docx")
-	quit error
 }
 
 ClassMethod TestIfParagraph() [ ProcedureBlock = 0 ]
 {
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("IfParagraph.docx")
-	if error '="" quit error
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("IfParagraph.odt")
-	quit error
 }
 
 ClassMethod TestIfRows() [ ProcedureBlock = 0 ]
@@ -178,10 +175,6 @@ ClassMethod TestIfRows() [ ProcedureBlock = 0 ]
 			set row(i) = "invisible row"
 		}
 	}
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("IfRows.docx")
-	if error '="" quit error
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("IfRows.odt")
-	quit error
 }
 
 ClassMethod TestNestedOrder() [ ProcedureBlock = 0 ]
@@ -202,10 +195,6 @@ ClassMethod TestNestedOrder() [ ProcedureBlock = 0 ]
 			
 		}
 	}
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("NestedOrder.docx")
-	if error '="" quit error
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("NestedOrder.odt")
-	quit error
 }
 
 ClassMethod TestNestedOrderIf() [ ProcedureBlock = 0 ]
@@ -216,10 +205,6 @@ ClassMethod TestNestedOrderIf() [ ProcedureBlock = 0 ]
 			set paragraphs(i,j) = "word "_i_" "_j
 		}
 	}
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("NestedOrderIf.docx")
-	if error '="" quit error
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("NestedOrderIf.odt")
-	quit error
 }
 
 ClassMethod TestHeadersAndFooters() [ ProcedureBlock = 0 ]
@@ -233,30 +218,17 @@ ClassMethod TestHeadersAndFooters() [ ProcedureBlock = 0 ]
 	set topRight = "Right corner"
 	set top4 = "top3 is missing"
 	set bottom4 = "End of the document"
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("HeadersAndFooters.docx")
-	if error '="" quit error
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("HeadersAndFooters.odt")
-	quit error
 }
 
 ClassMethod TestRowCounter() [ ProcedureBlock = 0 ]
 {
 	do ..GetTestStrings(.rows)
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("RowCounter.docx")
-	if error '="" quit error
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("RowCounter.odt")
-	quit error
 }
 
 ClassMethod TestListAndTable() [ ProcedureBlock = 0 ]
 {
 	do ..GetTestStrings(.rows)
 	set header = "Example of generating document"
-	
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("ListAndTable.docx")
-	if error '="" quit error
-	set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument("ListAndTable.odt")
-	quit error
 }
 
 }
