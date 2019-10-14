@@ -116,14 +116,14 @@ ClassMethod RenderDocumentToPrivateGlobal(templateName As %String, masRef As %St
 
 /// Render document template
 /// <var>templateName</var>
-/// <var>renderedFilename</var> - name of rendered document in working directory
-ClassMethod RenderDocument(templateName As %String, renderedFilename As %String = "") As %String
+/// <var>renderedDocumentFullFilename</var> - full filename of rendered document. If not given than document will created in working directory
+ClassMethod RenderDocument(templateName As %String, renderedDocumentFullFilename As %String = "") As %String
 {
 	
 	set documentTemplate = ##class(DocumentTemplate.DocumentTemplate).GetDocument(templateName)
 	if documentTemplate="" quit "Template with name  "_templateName_" not found"
 	
-	set workingDirectory = $Get(^DocumentTemplateSettings("workingDirectory"),$Get(^%SYS("TempDir")))
+	set workingDirectory = ..GetWorkingDirectory()
 	
 	if workingDirectory=""{
 		quit "The working directory is not set. s ^DocumentTemplateSettings(""workingDirectory"")=""your working directory"""
@@ -144,8 +144,28 @@ ClassMethod RenderDocument(templateName As %String, renderedFilename As %String 
 		if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc)
 	}
 	
+	quit ..RenderDocumentFromTemplate(templateFullFilename, renderedDocumentFullFilename)
+}
+
+/// Render document from template which is was not loaded to database
+/// <var>fullFilenameTemplate</var> full path to the template
+/// <var>renderedFilename</var> - fullname of result document
+ClassMethod RenderDocumentFromTemplate(templateFullFilename, renderedDocumentFullFilename)
+{
+	set workingDirectory = ..GetWorkingDirectory()
+	
+	if workingDirectory=""{
+		quit "The working directory is not set. s ^DocumentTemplateSettings(""workingDirectory"")=""your working directory"""
+	}
+	set created = ##class(%File).CreateDirectoryChain(workingDirectory)
+	if created'=1{
+		quit "Can't create working directory"
+	}
+	d ..WriteDebug("Working directory exists")
+	
 	// Directory name for unpacking: unpackin_datetime-$J-templatename
-	set unpackDirectory = $Replace($H,",","-")_"-"_$J_"-"_$Replace(documentTemplate.Filename,".","-")
+	set templateFilename = ##class(%File).GetFilename(templateFullFilename)
+	set unpackDirectory = $Replace(templateFilename,".","-")
 	set fullUnpackDirectory = ##class(%File).NormalizeFilename(unpackDirectory, workingDirectory)
 	
 	set sc = ..Unpack(templateFullFilename, fullUnpackDirectory)
@@ -154,13 +174,11 @@ ClassMethod RenderDocument(templateName As %String, renderedFilename As %String 
 	set error = ##class(DocumentTemplate.DocXmlRenderer).%New(fullUnpackDirectory).Render()
 	if error'="" d ..WriteDebug("Error while template processing "_error) quit error
 
-	// Pack rendered document
-	if $G(renderedFilename)="" {
-		set renderedFilename = $Replace($H,",","-")_"-"_$J_"-"_documentTemplate.Filename
+	if $G(renderedDocumentFullFilename)="" {
+		set renderedDocumentFullFilename = ##class(%File).NormalizeFilename($Replace($H,",","-")_"-"_$J_"-"_templateFilename, workingDirectory)
 	}
 	
-	set fullRenderedFilename = ##class(%File).NormalizeFilename(renderedFilename, workingDirectory)
-	set sc = ..Pack(fullUnpackDirectory, fullRenderedFilename)
+	set sc = ..Pack(fullUnpackDirectory, renderedDocumentFullFilename)
 	if $$$ISERR(sc) do clean quit $system.OBJ.DisplayError(sc) 
 	
 	do clean
@@ -174,6 +192,11 @@ clean
 	quit
 }
 
+ClassMethod GetWorkingDirectory()
+{
+	quit $Get(^DocumentTemplateSettings("workingDirectory"),$Get(^%SYS("TempDir")))
+}
+
 /// Unpack document in directory 
 ClassMethod Unpack(fullFilename As %String, directory As %String) As %String
 {
@@ -184,7 +207,7 @@ ClassMethod Unpack(fullFilename As %String, directory As %String) As %String
 	
 	set created = ##class(%File).CreateDirectoryChain(directory)
 	if 'created{
-		quit "Error while creating directory for upacking template "
+		quit "Error while creating directory for unpacking template "
 	}
 	// Save current directory
 	set curDir = ##class(%SYSTEM.Process).CurrentDirectory()
@@ -192,7 +215,7 @@ ClassMethod Unpack(fullFilename As %String, directory As %String) As %String
 	set sc = $ZF(-1, zipCommand)
 	if sc>1{
 		d ##class(%SYSTEM.Process).CurrentDirectory(curDir)
-		quit "Error while unpacking"
+		quit "Error while unpacking. Command: "_zipCommand_" returned "_sc
 	}
 	// Restore current directory
 	d ##class(%SYSTEM.Process).CurrentDirectory(curDir)
@@ -205,12 +228,12 @@ ClassMethod Pack(directory As %String, fullFilename As %String) As %Status
 {
 	set zipCommand = ..GetZipCommand(fullFilename, directory)
 	if zipCommand=""{
-		quit $$$ERROR($$$GeneralError,"Command for zip is not set: ^DocumentTemplateSettings(""zipCommand"")")
+		quit "Command for zip is not set: set ^DocumentTemplateSettings(""zipCommand"")=""your command"""
 	}
 	
 	set exists = ##class(%File).Exists(directory)
 	if 'exists{
-		quit $$$ERROR($$$GeneralError, "Error directory doesn't exist ")
+		quit "Error directory doesn't exist "
 	}
 	// Save current directory
 	set curDir = ##class(%SYSTEM.Process).CurrentDirectory()
@@ -218,7 +241,7 @@ ClassMethod Pack(directory As %String, fullFilename As %String) As %Status
 	set sc = $ZF(-1, zipCommand)
 	if sc>1{
 		d ##class(%SYSTEM.Process).CurrentDirectory(curDir)
-		quit $$$ERROR($$$GeneralError, "Error while packing")
+		quit "Error while packing. Command: "_zipCommand_" returned "_sc
 	}
 	// Restore current directory 
 	d ##class(%SYSTEM.Process).CurrentDirectory(curDir)
