@@ -494,7 +494,7 @@ Method DeleteMarkedNodes()
 		quit:nodeId=""
 	try{
 		set node = ..XMLDocument.GetNode(nodeId)
-		do node.Remove()
+		do node.ReplaceCharacter("")
 		do ..WriteDebug("Node "_node.NodeId_" "_nodeId_ "deleted")	
 	}
 	catch error{
