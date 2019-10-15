@@ -223,11 +223,13 @@ Method RenderXml(fullPathToXml As %String) As %String
 	set ..XMLDocumentMainNodeId = mainDocumentNode.NodeId
 	d ..TraverseXmlTree(.mainDocumentNode,"WriteXmlNode")
 	
+	set error = ..TraverseXmlTree(.mainDocumentNode,"SpecialTreatment")
+	if error'="" quit error
+	
 	// First passing through the tree - check the syntax and  move lexem in one xml node 
 	// {{ sometext }} {% sometext %}
 	
 	set error = ..TraverseXmlTree(.mainDocumentNode,"LexicalParse")
-	
 	if error'="" quit error
 	
 	// If state is not equal to 1 then error occured
@@ -325,7 +327,6 @@ Method TraverseXmlTree(ByRef xmlNode As %XML.Node, method1 As %String, method2 A
 /// Return string with error or "" if  no error occured
 Method LexicalParse(xmlNode) As %String
 {
-	do ..SpecialTreatment(.xmlNode)
 	set text = ""
 	set textExist = 0
 	try{
@@ -371,17 +372,26 @@ Method LexicalParse(xmlNode) As %String
 
 Method SpecialTreatment(ByRef node)
 {
+	set nodeId = node.NodeId
 	if node.QName="text:p"{
 		// Loop through child nodes
 		// characer nodes replaced with <text:span>
-		if node.HasChildNodes(){
-			d node.MoveToFirstChild()
+		if node.HasChildNodes(1){
+			d node.MoveToFirstChild(1)
 			set siblingsExist = 1
 			while siblingsExist{
 				if node.NodeType=$$$xmlTEXTNODE{
-					do node.ReplaceElement("span", "", node.NodeData, "text:span")
+					set childNodeId = node.NodeId
+					set nodeData = node.NodeData
+					do node.MoveToParent()
+					set newNodeId = node.InsertElement("span", "", .childNodeId, nodeData, "text:span")
+					set node = ..XMLDocument.GetNode(childNodeId)
+					d node.Remove()
+					set node = ..XMLDocument.GetNode(newNodeId)
+					//do node.ReplaceElement("span", "", node.NodeData, "text:span")
 				}
-				set siblingsExist = node.MoveToNextSibling()
+					
+				set siblingsExist = node.MoveToNextSibling(1)
 				
 			}
 			d node.MoveToParent()
@@ -393,8 +403,10 @@ Method SpecialTreatment(ByRef node)
 		if spaceCount'>0 set spaceCount=1
 		set replaceStr = ""
 		for i=1:1:spaceCount set replaceStr=replaceStr_" "
+
 		do node.ReplaceCharacter(replaceStr)
-	}
+	}			
+	quit ""
 }
 
 Method NextLexicalState(char)
