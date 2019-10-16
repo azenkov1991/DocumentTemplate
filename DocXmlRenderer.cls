@@ -327,6 +327,7 @@ Method TraverseXmlTree(ByRef xmlNode As %XML.Node, method1 As %String, method2 A
 /// Return string with error or "" if  no error occured
 Method LexicalParse(xmlNode) As %String
 {
+	if xmlNode.NodeType'= $$$xmlELEMENTNODE quit ""
 	set text = ""
 	set textExist = 0
 	try{
@@ -344,7 +345,7 @@ Method LexicalParse(xmlNode) As %String
 					
 					// if something else in the node put tag characters before
 					// to ensure that there is no different tags parts in one node
-					if (i <$length(text)){
+					if (i <$length(text) && ($LISTLENGTH(..CurrentTagNodesList)>1)){
 						set newNodeId = ..InsertNodeBefore(.xmlNode,$E(text, 1, i))
 						
 						do ..DeleteLastNodeFromTagNodeList(xmlNode.NodeId)
@@ -855,7 +856,8 @@ Method SyntaxParse(node As %XML.Node) As %String
 	if 'isFound quit ""
 
 	set variableRegExp = "([A-Za-z]+[A-Za-z0-9]*"_"(\(.+\)){0,1})"
-	set globalVariableRegExp = "((\^)|(\^\|\|))"_variableRegExp
+	set variableRegExpWithDots = "([A-Za-z]+[A-Za-z0-9\.]*"_"(\(.+\)){0,1})"
+	set globalVariableRegExp = "((\^)|(\^\|\|)|(\^\|\"".+\""\|))"_variableRegExpWithDots
 	set anyVariableRegExp = "(("_globalVariableRegExp_")|("_variableRegExp_"))"
 	set numberRegExp = "\d+(\.\d+)?"
 
@@ -1014,6 +1016,8 @@ ClassMethod EvaluateExpression(expression) [ ProcedureBlock = 0 ]
 	set expression = $Replace(expression,$C(8221),"""")
 	set expression = $Replace(expression,$C(8220),"""")
 	set expression = $Replace(expression,$C(8217),"'")
+	set expression = $Replace(expression, $C(171),"""")
+	set expression = $Replace(expression, $C(187),"""")
 	set expression = $xecute("quit "_expression)
 	quit $Replace(expression,"_"," ")
 }
