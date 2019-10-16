@@ -4,21 +4,7 @@ Class DocumentTemplate.Test
 /// Load all test documents in the database from the <var>directory</var>
 ClassMethod LoadTestDocs(directory)
 {
-	set namesList = $LB("SimpleTextSubstitution",
-						"ExpressionSubstitution",
-						"ExpressionSubstitution",
-						"IfParagraph",
-						"IfRows",
-						"OrderTableRows",
-						"OrderTableRowsAndColumns",
-						"OrderParagraph",
-						"OrderTableColumns",
-						"NestedOrder",
-						"NestedOrderIf",
-						"HeadersAndFooters",
-						"RowCounter",
-						"ListAndTable"
-	)
+	set namesList = ..GetTestNames()
 	set ptr=0
 	while $listnext(namesList, ptr, name){
 		for extension = "docx","odt"{
@@ -41,28 +27,36 @@ ClassMethod LoadTestDocs(directory)
 
 ClassMethod RunAllTests(directory = "", extension = "")
 {
-	set namesList = $LB("SimpleTextSubstitution",
-						"ExpressionSubstitution",
-						"IfParagraph",
-						"IfRows",
-						"OrderTableRows",
-						"OrderTableRowsAndColumns",
-						"OrderParagraph",
-						"OrderTableColumns",
-						"NestedOrder",
-						"NestedOrderIf",
-						"HeadersAndFooters",
-						"RowCounter",
-						"ListAndTable"
-	)
+	set namesList = ..GetTestNames()
 	set ptr=0
 	while $listnext(namesList, ptr, name){
 		do ..RunTest(name, directory, extension)
 	}
 }
 
+ClassMethod GetTestNames()
+{
+	quit $LB("SimpleTextSubstitution",
+			 "ExpressionSubstitution",
+			 "IfParagraph",
+			 "IfRows",
+			 "OrderTableRows",
+			 "OrderTableRowsAndColumns",
+			 "OrderParagraph",
+			 "OrderTableColumns",
+			 "NestedOrder",
+			 "NestedOrderIf",
+			 "HeadersAndFooters",
+			 "RowCounter",
+			 "ListAndTable",
+			 "ThreeDigits",
+			 "SamplePersonsTable"
+	)
+}
+
 ClassMethod RunTest(testName, directory = "", extension = "") [ ProcedureBlock = 0 ]
 {
+	try{
 	//create context for test
 	do $classmethod("DocumentTemplate.Test", "Test"_testName)
 	
@@ -89,6 +83,11 @@ ClassMethod RunTest(testName, directory = "", extension = "") [ ProcedureBlock =
 		else {
 			write !, "Template "_testName_" is rendered successfully"
 		}
+	}
+	}
+	catch error{
+		write !, "Error while rendering template "_testName
+		write !, error.Name_" "_error.Location
 	}
 }
 
@@ -227,8 +226,16 @@ ClassMethod TestRowCounter() [ ProcedureBlock = 0 ]
 
 ClassMethod TestListAndTable() [ ProcedureBlock = 0 ]
 {
-	do ..GetTestStrings(.rows)
+	do ..GetTestStrings(.row)
 	set header = "Example of generating document"
+}
+
+ClassMethod TestThreeDigits()
+{
+}
+
+ClassMethod TestSamplePersonsTable()
+{
 }
 
 }
