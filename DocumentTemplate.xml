@@ -1,0 +1,2019 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25" zv="Cache for Windows (x86-64) 2018.1.2 (Build 309U_SU)" ts="2019-10-17 16:55:17">
+<Class name="DocumentTemplate.DocXmlRenderer">
+<Description><![CDATA[
+Render document template (docx or odt) unpacked in direcotry  <var>Directory</var>
+Lexical parser successively passes through character of the xml document
+On each character it chooses a new state according to current state and table of states transitions
+Initial state is  1 -  between tags. On last character the state must be equal to 1, otherwise error occured
+<p>Lexical parser states:  </p>
+<p>  1 Between tags  </p>
+<p>  "{" - 2  </p>
+<p>  - 1  </p>
+<p>  2 First tag character was found "{"  </p>
+<p>  "{" - 3  </p>
+<p>  "%" - 4  </p>
+<p>  - 1  </p>
+<p>  3 Inside the tag {{ }}  </p>
+<p>  "}" - 5  </p>
+<p>  - 3  </p>
+<p>  4 Inside the tag {% %}  </p>
+<p>  "%" - 6  </p>
+<p>  - 4  </p>
+<p>  5 First character } of closing braces {{ }}  </p>
+<p>  "}" - 1  </p>
+<p>  - 3  </p>
+<p>  6 First character % of closing braces {% %}  </p>
+<p>  "}" - 1 </p>
+<p>  - 4  </p>]]></Description>
+<IncludeCode>DocumentTemplate.General</IncludeCode>
+<Super>%RegisteredObject</Super>
+<TimeChanged>65303,60810.311491</TimeChanged>
+<TimeCreated>65269,53530.911081</TimeCreated>
+
+<Property name="Directory">
+<Description>
+Unpacked document directory</Description>
+<Type>%String</Type>
+</Property>
+
+<Property name="XMLDocument">
+<Description>
+XML.Document</Description>
+<Type>%XML.Document</Type>
+</Property>
+
+<Property name="XMLDocumentMainNodeId">
+<Type>%String</Type>
+</Property>
+
+<Property name="XMLWriter">
+<Type>%XML.Writer</Type>
+</Property>
+
+<Property name="LexicalStates">
+<Description>
+States map </Description>
+<MultiDimensional>1</MultiDimensional>
+</Property>
+
+<Property name="LexicalCurrentState">
+<Description>
+Current state</Description>
+</Property>
+
+<Property name="LexicalStateHistory">
+<Description>
+States history</Description>
+<Type>%List</Type>
+</Property>
+
+<Property name="CurrentTagNodes">
+<Description>
+Store xml node ids of current tag
+Whole tag wil be moved to the first node</Description>
+<MultiDimensional>1</MultiDimensional>
+</Property>
+
+<Property name="CurrentTagNodesList">
+<Description>
+Store xml node ids of current tag as a list</Description>
+<Type>%List</Type>
+</Property>
+
+<Property name="ToDeleteNodes">
+<Description>
+Nodes marked for deleting</Description>
+<MultiDimensional>1</MultiDimensional>
+</Property>
+
+<Property name="IfTags">
+<Description>
+store  'if' tags
+IfTags(startTagNodeId) = endTagNodeId
+IfTags(startTagNodeId, "expression") = "conditional expression" </Description>
+<MultiDimensional>1</MultiDimensional>
+</Property>
+
+<Property name="IfTagsStack">
+<Description>
+Stack for nested 'if' tags</Description>
+<Type>%List</Type>
+</Property>
+
+<Property name="OrderTags">
+<Description>
+Store order-tags
+OrderTags(startTagNodeId) = endTagNodeId
+OrderTags(startTagNodeId, "mas") = "Name of the global"
+OrderTags(startTagNodeId, "index") = "index variable for passing through global nodes"</Description>
+<MultiDimensional>1</MultiDimensional>
+</Property>
+
+<Property name="OrderTagsStack">
+<Description>
+Stack for nested 'order' tags</Description>
+<Type>%List</Type>
+</Property>
+
+<Property name="TagTypeStack">
+<Description>
+Store 'order' or 'if' tags
+Using for catching error</Description>
+<Type>%String</Type>
+</Property>
+
+<Property name="SetTags">
+<Description>
+Store set-tag
+setTags(setTagNodeId) = ""
+setTags(setTagNodeId, "variable") = "variable for assignment"
+setTags(setTagNodeId, "expression") = "expression"</Description>
+<MultiDimensional>1</MultiDimensional>
+</Property>
+
+<Property name="IfSiblings">
+<Description>
+Store if-siblings </Description>
+<MultiDimensional>1</MultiDimensional>
+</Property>
+
+<Property name="OrderSiblings">
+<Description>
+Store order sibling</Description>
+<MultiDimensional>1</MultiDimensional>
+</Property>
+
+<Property name="SkipIfEmptyNodes">
+<Description>
+Store nodes marked for deletion if they are empty</Description>
+<MultiDimensional>1</MultiDimensional>
+</Property>
+
+<Method name="%OnNew">
+<FormalSpec>directory:%String</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	set $this.Directory = directory
+	
+	
+	set ..LexicalStates(1) = 1
+	set ..LexicalStates(1,"{") = 2
+	set ..LexicalStates(2) = 1
+	set ..LexicalStates(2,"{") = 3
+	set ..LexicalStates(2,"%") = 4
+	set ..LexicalStates(3) = 3
+	set ..LexicalStates(3,"}") = 5
+	set ..LexicalStates(4) = 4
+	set ..LexicalStates(4,"%") = 6
+	set ..LexicalStates(5) = 3
+	set ..LexicalStates(5,"}") = 1
+	set ..LexicalStates(6) = 4
+	set ..LexicalStates(6,"}") = 1
+	
+
+	quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="ClearState">
+<Implementation><![CDATA[
+	set ..LexicalCurrentState = 1
+	set ..LexicalStateHistory = $LB()
+	
+	set ..CurrentTagNodesList=""
+	set ..IfTagsStack = ""
+	set ..OrderTagsStack = ""
+	set ..TagTypeStack = ""
+	kill ..CurrentTagNodes, ..ToDeleteNodes, ..IfTags, ..OrderTags
+	kill ..IfSiblings, ..OrderSiblings, ..SkipIfEmptyNodes
+]]></Implementation>
+</Method>
+
+<Method name="Render">
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set documentFileDocx = ##class(%File).NormalizeFilename("word/document.xml", $this.Directory)
+	set documentFileOdt = ##class(%File).NormalizeFilename("content.xml", $this.Directory)
+	if ##class(%File).Exists(documentFileDocx){
+		quit ..RenderDocx()
+	}
+	elseif ##class(%File).Exists(documentFileOdt){
+		quit ..RenderOdt()
+	}
+	else{
+		quit "Unsupported file format"
+	}
+]]></Implementation>
+</Method>
+
+<Method name="RenderDocx">
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set documentFile = ##class(%File).NormalizeFilename("word/document.xml", $this.Directory) 
+
+	// Render main document
+	set error = ..RenderXml(documentFile)
+	if error'="" quit error
+	do ..WriteDebug("Main document is rendered")
+		
+	// Render footers
+	set footerExist = 1
+	set footerCounter = 1
+	while footerExist{
+		set footerFile = ##class(%File).NormalizeFilename("word/footer"_footerCounter_".xml", $this.Directory)
+		if ##class(%File).Exists(footerFile){
+			set error = ..RenderXml(footerFile)
+			if error'="" quit 
+			do ..WriteDebug("Footer is rendered")
+			set footerCounter = $I(footerCounter)
+		}
+		else{
+			set footerExist = 0
+		}
+	}
+	if error'="" quit error
+	
+		
+	// Render headers
+	set headerExist = 1
+	set headerCounter = 1
+	while headerExist{
+		set headerFile = ##class(%File).NormalizeFilename("word/header"_headerCounter_".xml", $this.Directory)
+		if ##class(%File).Exists(headerFile){
+			set error = ..RenderXml(headerFile)
+			if error'="" quit 
+			do ..WriteDebug("Header rendered")
+			set headerCounter = $I(headerCounter)
+		}
+		else{
+			set headerExist = 0
+		}
+	}
+	if error'="" quit error
+	
+	do ..WriteDebug("render complete")
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="RenderOdt">
+<Implementation><![CDATA[
+	set documentFile = ##class(%File).NormalizeFilename("content.xml", $this.Directory) 
+
+	// Render main document
+	set error = ..RenderXml(documentFile)
+	if error'="" quit error
+	do ..WriteDebug("Main document is rendered")
+	
+	set styleFile = ##class(%File).NormalizeFilename("styles.xml", $this.Directory)
+	set error = ..RenderXml(styleFile)
+	if error'="" quit error
+	do ..WriteDebug("Style documnet is rendered") 
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="RenderXml">
+<Description>
+Render xml 
+Return error string or "" if no errors occured</Description>
+<FormalSpec>fullPathToXml:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	do ..ClearState()
+	
+	set docFullFileName = fullPathToXml
+	set xmlReader = ##class(%XML.Reader).%New()
+	set sc = xmlReader.OpenFile(docFullFileName)
+	if $$$ISERR(sc) quit sc
+	set ..XMLDocument = xmlReader.Document
+	
+	set mainDocumentNode = ..XMLDocument.GetNode(..XMLDocument.GetDocumentNode())
+	set ..XMLDocumentMainNodeId = mainDocumentNode.NodeId
+	d ..TraverseXmlTree(.mainDocumentNode,"WriteXmlNode")
+	
+	set error = ..TraverseXmlTree(.mainDocumentNode,"SpecialTreatment")
+	if error'="" quit error
+	
+	// First passing through the tree - check the syntax and  move lexem in one xml node 
+	// {{ sometext }} {% sometext %}
+	
+	set error = ..TraverseXmlTree(.mainDocumentNode,"LexicalParse")
+	if error'="" quit error
+	
+	// If state is not equal to 1 then error occured
+	if "3,5" [..LexicalCurrentState quit "Unclosed tag {{ }}"
+	if "4,6" [..LexicalCurrentState  quit "Unclosed tag {% %}"
+	do ..WriteDebug("Lexical parsing is completed")
+	
+	d ..DeleteMarkedNodes()
+	do ..WriteDebug("Nodes was deleted")
+	
+	do ..WriteDebug("Tree after parsing: ")
+	d ..TraverseXmlTree(.mainDocumentNode,"WriteXmlNode")
+	
+	// Separate tags in one xml node into individual nodes
+	set error = ..TraverseXmlTree(.mainDocumentNode,"SeparateTags")
+	if error'="" quit error
+	do ..WriteDebug("Separating is completed")
+	
+	// Check syntax and find tags order,if, set
+	set error = ..TraverseXmlTree(.mainDocumentNode,"SyntaxParse")
+	if error'="" quit error
+	do ..WriteDebug("Syntax parsing is completed")
+	
+	// Check unclosed tags
+	set unclosedIf = 0, unclosedOrder=0, nodeId=""
+	if $length(..OrderTagsStack)'=0{
+		set unclosedOrder = 1
+		set nodeId = ..PopFromOrderStack()
+	}
+	if $length(..IfTagsStack)'=0{
+		set unclosedIf = 1
+		set nodeId = ..PopFromIfStack()
+	}
+	if unclosedIf||unclosedOrder{
+		set node = ..XMLDocument.GetNode(nodeId)
+		set tagText = ""
+		try{
+			d node.GetText(.tagText, 0)
+		}
+		catch{}
+		quit "Unclosed tag "_$S(unclosedOrder:"Order",1:"If")_": "_ tagText
+	}
+		
+	// Processing IfTags and OrderTags
+	
+	// Find siblings for repetition in order loop
+	do ..FindSiblings($Name(..OrderTags), $Name(..OrderSiblings))
+	// Find siblings for repetition in if loop
+	do ..FindSiblings($Name(..IfTags), $Name(..IfSiblings))
+	
+	
+	// Write result
+	d xmlReader.Close()
+	set ..XMLWriter = ##class(%XML.Writer).%New()
+	set ..XMLWriter.Charset="UTF-8"
+	set sc = ..XMLWriter.OutputToFile(docFullFileName)
+	if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc)
+	set error = ..Processing(.mainDocumentNode)
+	if error'="" quit error
+	
+	
+	
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="TraverseXmlTree">
+<Description><![CDATA[
+Pass through  <var>xmlNode</var> from left to right calling  <var> method </var on each node
+<var>method </var> takes xml node as an argument
+<var>method1</var> - calling before child elements
+<var>method2</var> - calling after child elements
+Return string with error or "" if  no error occured]]></Description>
+<FormalSpec><![CDATA[&xmlNode:%XML.Node,method1:%String,method2:%String=""]]></FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set error = $method($this, method1, .xmlNode)
+	if error'="" quit error
+	if xmlNode.HasChildNodes(){
+		d xmlNode.MoveToFirstChild()
+		set siblingsExist = 1
+		while siblingsExist{
+			set error = ..TraverseXmlTree(.xmlNode, method1, method2)
+			if error'="" quit
+			set siblingsExist = xmlNode.MoveToNextSibling()
+		}
+		d xmlNode.MoveToParent()
+	}
+	if $G(error)'="" quit error
+	if method2'=""{
+		set error = $method($this, method2, .xmlNode)
+		if error'="" quit error
+	}
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="LexicalParse">
+<Description>
+Method is used as TraverseXmlTree argument
+Find tags, store in stack their position
+Return string with error or "" if  no error occured</Description>
+<FormalSpec>xmlNode</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	if xmlNode.NodeType'= $$$xmlELEMENTNODE quit ""
+	set text = ""
+	set textExist = 0
+	try{
+		set textExist = xmlNode.GetText(.text, 0 )
+	}
+	catch{	}
+	
+	if textExist && ($G(text)'=""){
+		for i=1:1:$length(text){
+			set char = $E(text,i)
+			d ..NextLexicalState(char)
+			if ..LexicalCurrentState=1{
+				// if end of the tag was found assemble the tag in one xml node
+				if ($D(..CurrentTagNodes) && (char="}") ) {
+					
+					// if something else in the node put tag characters before
+					// to ensure that there is no different tags parts in one node
+					if (i <$length(text) && ($LISTLENGTH(..CurrentTagNodesList)>1)){
+						set newNodeId = ..InsertNodeBefore(.xmlNode,$E(text, 1, i))
+						
+						do ..DeleteLastNodeFromTagNodeList(xmlNode.NodeId)
+						do ..PushToCurrentTagNodesList(newNodeId)
+						
+						// All the rest stay in current node
+						do ..ReplaceNode(.xmlNode,$E(text,i+1,*))
+					}
+					else{
+						do ..PushToCurrentTagNodesList(xmlNode.NodeId) 
+					}
+					do ..StoreTagInOneNode()
+				}
+			}
+			else {
+				if ..LexicalCurrentState=2{
+					do ..DeleteCurrentTagNodes()
+				}
+				do ..PushToCurrentTagNodesList(xmlNode.NodeId) 
+			}
+		}
+	}
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="SpecialTreatment">
+<FormalSpec><![CDATA[&node]]></FormalSpec>
+<Implementation><![CDATA[
+	set nodeId = node.NodeId
+	if node.QName="text:p"{
+		// Loop through child nodes
+		// characer nodes replaced with <text:span>
+		if node.HasChildNodes(1){
+			d node.MoveToFirstChild(1)
+			set siblingsExist = 1
+			while siblingsExist{
+				if node.NodeType=$$$xmlTEXTNODE{
+					set childNodeId = node.NodeId
+					set nodeData = node.NodeData
+					do node.MoveToParent()
+					set newNodeId = node.InsertElement("span", "", .childNodeId, nodeData, "text:span")
+					set node = ..XMLDocument.GetNode(childNodeId)
+					d node.Remove()
+					set node = ..XMLDocument.GetNode(newNodeId)
+					//do node.ReplaceElement("span", "", node.NodeData, "text:span")
+				}
+					
+				set siblingsExist = node.MoveToNextSibling(1)
+				
+			}
+			d node.MoveToParent()
+		}
+	}
+	if node.QName="text:s"{
+		// <text:s> replaced with spaces
+		set spaceCount = node.GetAttributeValue("c")
+		if spaceCount'>0 set spaceCount=1
+		set replaceStr = ""
+		for i=1:1:spaceCount set replaceStr=replaceStr_" "
+
+		do node.ReplaceCharacter(replaceStr)
+	}			
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="NextLexicalState">
+<FormalSpec>char</FormalSpec>
+<Implementation><![CDATA[
+	// Take next state from state table
+	if $D(..LexicalStates(..LexicalCurrentState,char)){
+		set ..LexicalCurrentState = ..LexicalStates(..LexicalCurrentState,char)
+	}
+	// If there is no state then go to the default state
+	else {
+		set ..LexicalCurrentState = ..LexicalStates(..LexicalCurrentState)
+	}
+]]></Implementation>
+</Method>
+
+<Method name="PushToCurrentTagNodesList">
+<FormalSpec>value</FormalSpec>
+<Implementation><![CDATA[
+	if '$D(..CurrentTagNodes(value)){
+		s ..CurrentTagNodes(value) = ""
+		$$$PushToStack(..CurrentTagNodesList, value)
+	}
+]]></Implementation>
+</Method>
+
+<Method name="DeleteLastNodeFromTagNodeList">
+<FormalSpec>value</FormalSpec>
+<Implementation><![CDATA[
+	if $LI(..CurrentTagNodesList,*)=value{
+		set value = $$$PopFromStack(..CurrentTagNodesList)
+		kill ..CurrentTagNodes(value)
+	}
+]]></Implementation>
+</Method>
+
+<Method name="DeleteCurrentTagNodes">
+<Implementation><![CDATA[
+	k ..CurrentTagNodes
+	s ..CurrentTagNodesList = ""
+]]></Implementation>
+</Method>
+
+<Method name="StoreTagInOneNode">
+<Description>
+Remote tag in first xml node
+Other nodes will be deleted</Description>
+<Implementation><![CDATA[
+	if '$D(..CurrentTagNodes) quit
+	// If tag in one xml node there's nothing to do
+	if $LISTLENGTH(..CurrentTagNodesList)=1 d ..DeleteCurrentTagNodes() quit
+	do ..WriteDebug("Begin tag moving")
+	set ptr = 0
+	set nodeId=""
+	
+	set isNotEnd = $LISTNEXT(..CurrentTagNodesList,ptr,nodeId)
+	if 'isNotEnd d ..DeleteCurrentTagNodes() quit
+	
+	set mainNodeId = nodeId
+	set mainNode = ..XMLDocument.GetNode(nodeId)
+
+	set nodeText=""
+	try{
+		d mainNode.GetText(.nodeText)
+	}
+	catch{}
+	
+	// tag assemle in nodeText 
+	while $LISTNEXT(..CurrentTagNodesList, ptr, nodeId){
+		set node = ..XMLDocument.GetNode(nodeId)
+		try{
+			d node.GetText(.nodeText)
+		}
+		catch{
+		}
+		do ..WriteDebug("Node marked for deletion: "_node.NodeId)
+		set ..ToDeleteNodes(node.NodeId)=""
+	}
+	do ..ReplaceNode(.mainNode, nodeText)
+		
+	do ..WriteDebug("Assembling tag in one node is completed. Tag: "_nodeText)
+
+	k testText
+	k nodeText
+	d ..DeleteCurrentTagNodes()
+]]></Implementation>
+</Method>
+
+<Method name="DeleteMarkedNodes">
+<Implementation><![CDATA[
+	set nodeId=""
+	for{
+		set nodeId = $Order(..ToDeleteNodes(nodeId),-1)
+		quit:nodeId=""
+	try{
+		set node = ..XMLDocument.GetNode(nodeId)
+		do node.ReplaceCharacter("")
+		do ..WriteDebug("Node "_node.NodeId_" "_nodeId_ "deleted")	
+	}
+	catch error{
+		do ..WriteDebug(error.Name_" "_error.Location)
+	}
+
+	}
+]]></Implementation>
+</Method>
+
+<Method name="Processing">
+<Description>
+Traverse XML and writing nodes 
+Processing 'if' 'order' and 'set' tags</Description>
+<FormalSpec><![CDATA[&node:%XML.Node]]></FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	// processing if
+	set error =""
+	set expression=1
+	if ($D(..IfSiblings(node.NodeId))){
+		
+		try{
+			set expression = ..EvaluateExpression(..IfSiblings(node.NodeId,"expression"))
+			d ..WriteDebug("Condition "_..IfSiblings(node.NodeId,"expression")_" "_expression)
+		}
+		catch exeption{
+			set error = "Erroe while 'if' condition evaluating : "_..IfSiblings(node.NodeId,"expression")_$C(13,10)_exeption.DisplayString()
+		}
+		if error'="" quit error
+		
+		// Mark node with closing tag for deleting if it empty
+		set ..SkipIfEmptyNodes(..IfSiblings(node.NodeId))=""
+		
+		// If condition is false go to last sibling
+		// i.e skip block inside 'if'
+		if 'expression{
+			set node = ..XMLDocument.GetNode(..IfSiblings(node.NodeId))
+			quit ""
+		}else{
+			if ..IsNodeEmpty(node){
+				d node.MoveToNextSibling()
+			}
+		}
+		
+	}
+	if error'="" quit error
+	// processing 'order'
+	// ..OrderSiblings(node.NodeId,"calculating")=1 - mark that node under processing
+	// otherwise infinite loop occour
+	if ($D(..OrderSiblings(node.NodeId))&&($G(..OrderSiblings(node.NodeId,"calculating"))'=1)){
+		set endSiblingNodeId = ..OrderSiblings(node.NodeId)
+		set startSiblingNodeId = node.NodeId
+		set indexRef = ..OrderSiblings(node.NodeId,"index")
+		set masRef = ..OrderSiblings(node.NodeId,"mas")
+		s ..OrderSiblings(startSiblingNodeId, "calculating")=1
+		do ..WriteDebug("Loop through array "_masRef_" "_indexRef)
+		do ..DeclareIndex(indexRef)
+		//Loop through array using declared index
+		set infiniteLoopProtector = 0
+		for{
+			try{
+				set index = ..OrderMas(masRef, indexRef)
+				set infiniteLoopProtector = infiniteLoopProtector + 1
+				do ..WriteDebug("Inside the array "_masRef_" index "_indexRef_" "_index)
+			}
+			catch exeption{
+				set error = "Error while order processing: "_..OrderSiblings(node.NodeId,"mas")_$C(13,10)_exeption.DisplayString()
+			}
+			quit:index=""
+			quit:error'=""
+			if infiniteLoopProtector > $G(^DocumentPatternSettings("maxOrderIterations"),"128000"){
+				set error="Infinite loop protection, number of iterations is more than "_$G(^DocumentPatternSettings("maxOrderIterations"),"128000")
+				quit
+			}
+			set siblingsExist = 1
+			// Skip first sibling if it is empty
+			if ..IsNodeEmpty(node){
+				set siblingsExist = node.MoveToNextSibling()
+			}
+			// loop through siblings
+			while siblingsExist{
+				// Skip last sibling if it is empty
+				if node.NodeId=endSiblingNodeId && ..IsNodeEmpty(node){
+					quit
+				}
+				set error = ..Processing(.node)
+				if error'="" quit 
+				set siblingsExist = node.MoveToNextSibling()
+			}
+			quit:error'=""
+			// Before the next repetition go to the first sibling
+			set node = ..XMLDocument.GetNode(startSiblingNodeId)
+		}
+		quit:error'="" error
+		s ..OrderSiblings(startSiblingNodeId, "calculating")=0
+		do ..KillIndex(indexRef)
+		// After the order the last sibling became current node
+		set node = ..XMLDocument.GetNode(endSiblingNodeId)
+		quit ""
+	}
+	if error'="" quit error
+	
+	// Processing set
+	if ($D(..SetTags(node.NodeId)))
+	{
+		try{
+			set value = ..EvaluateExpression(..SetTags(node.NodeId,"expression"))
+		}
+		catch exeption{
+			set error = "Error while evaluating 'set' expression : "_..SetTags(node.NodeId,"expression")_$C(13,10)_exeption.DisplayString()
+		}
+		quit:error'="" error
+		try{
+			d ..SetVariable(..SetTags(node.NodeId,"variable"),value)
+		}
+		catch exeption{
+			set error = "Error while variable assignment: "_..SetTags(node.NodeId,"variable")_$C(13,10)_exeption.DisplayString()
+		}
+	}
+	// Skip nodes marked as empty
+	if $D(..SkipIfEmptyNodes(node.NodeId))&&..IsNodeEmpty(node) quit ""
+	set error = ..WriteAndEvaluateNode1(node)
+	if error'="" quit error
+	if node.HasChildNodes(){
+		d node.MoveToFirstChild()
+		set siblingsExist = 1
+		while siblingsExist{
+			set error = ..Processing(.node)
+			if error'="" quit
+			set siblingsExist = node.MoveToNextSibling()
+		}
+		d node.MoveToParent()
+	}
+	if $G(error)'="" quit error
+	set error = ..WriteAndEvaluateNode2(node)
+	if error'="" quit error
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="WriteAndEvaluateNode1">
+<Description>
+Write xml node and evaluate it. Used as  TraverseXml argument</Description>
+<FormalSpec>node:%XML.Node</FormalSpec>
+<Implementation><![CDATA[
+	if node.QName="" quit ""
+	set error = ""
+	if node.NodeId=..XMLDocumentMainNodeId{
+		set sc =  ..XMLWriter.RootElement(node.QName)
+	}
+	else{
+		set sc =  ..XMLWriter.Element(node.QName)
+	}
+	
+	if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc)
+	set attributeName = node.FirstAttributeName()
+	//Write all attributes
+	while attributeName'=""{
+		set name = node.GetAttributeQName(attributeName)
+		set value = node.GetAttributeValue(attributeName)
+		set namespace = node.GetAttributeNamespace(attributeName)
+		d ..XMLWriter.WriteAttribute(name, value, namespace)
+		set attributeName = node.NextAttributeName(.attributeName)
+	}
+	set textExist = 0
+	set text=""
+	try{
+		set textExist = node.GetText(.text)
+	}
+	catch{	}
+	if textExist{
+		// if expression then evaluate it
+		if $match(text,"\{\{.+\}\}"){
+			set expression= $ZSTRIP($P($P(text,"{{",2),"}}",1),"<>W")
+			try{
+				set result = ..EvaluateExpression(expression)
+			}
+			catch exeption{
+				set error="Error while evaluating expression: "_expression_$C(13,10)_exeption.DisplayString()
+			}
+			if error'="" quit error
+			if $E(result,1,6)="XMLMOD"{
+				set result=$E(result,7,*)
+				do ..XMLWriter.Write(result)
+			} 	
+			else{
+				do ..XMLWriter.WriteChars(result)
+			}
+		}
+		else{
+			do ..XMLWriter.WriteChars(text)
+		}
+	}
+	quit error
+]]></Implementation>
+</Method>
+
+<Method name="WriteAndEvaluateNode2">
+<Description>
+End of writing xml node. Used as TraverseXml argument</Description>
+<FormalSpec>node:%XML.Node</FormalSpec>
+<Implementation><![CDATA[
+	if node.QName="" quit ""
+	if node.NodeId=..XMLDocumentMainNodeId{
+		d ..XMLWriter.EndRootElement()
+	}
+	else{
+		do ..XMLWriter.EndElement()
+	}
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="SeparateTags">
+<FormalSpec>node:%XML.Node</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set textExist=0
+	set text = ""
+	try{
+		set textExist = node.GetText(.text, 0 )
+	}
+	catch{	}
+	if 'textExist quit ""
+	set start = $LOCATE(text,"\{[%\{].*[%\}]\}")
+	if start=0 quit ""
+	set tagExist=1
+	while tagExist{
+		//finding tag
+		set start = 0
+		set end = 0
+		set tag = ""
+
+		set start = $LOCATE(text,"\{[%\{].*[%\}]\}", start, end, tag)
+		if start=0 quit
+		// .* - greedy qualifier
+		// find inside text closing lexem
+		set closeBracket = $S($E(text,start+1)="{":"\}",1:"%")_"\}" // closeBracket = %} or }}
+		set closeBracketIndex = $Locate(text, closeBracket,start)
+		
+		// if closing lexem was found shorten it
+		if (closeBracketIndex'=0) && ((closeBracketIndex + 2) < end){
+			set end = closeBracketIndex + 2
+			set tag = $E(text,start, end-1)
+		}
+		
+		// insert text before tag into the xml node before
+		// all the rest remains in current node
+		if start>1{
+			set newNodeText = $E(text,1,start-1)
+			do ..InsertNodeBefore(.node, newNodeText)
+			do ..WriteDebug("Text1: "_text_" splitted on "_newNodeText_" and "_$E(text,start,*))
+			set text=$E(text,start,*)
+			continue
+		}
+		// if characters after tag exists  then insert the copy of xml node with tag before the current node 
+		// all the rest remains in current node
+		
+		if end '> $L(text){
+			do ..InsertNodeBefore(.node, tag)
+			do ..WriteDebug("Text2: "_text_" splitted on "_tag_" and "_$E(text,end,*))
+			set text = $E(text,end,*)
+			continue
+		}
+		set tagExist=0
+	}
+	do ..ReplaceNode(.node, text)
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="InsertNodeBefore">
+<Description>
+Insert copy of xml node before  with given text
+Return id of the new node</Description>
+<FormalSpec><![CDATA[&node:%XML.Node,text:%String]]></FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	do ..WriteDebug("Insert node before, node name "_node.QName_" , text "_text)
+	
+	set nodeId = node.NodeId
+	set QName = node.QName
+	set localName = node.LocalName
+	set namespace = node.Namespace
+	
+	set nodeAttributes = ""
+	do ..SaveNodeAttributes(.node, .nodeAttributes)
+	
+	
+	d node.MoveToParent()
+	set text = ..Replaceon160(text)
+	set newNodeId = node.InsertElement(localName, namespace, nodeId, text, QName)
+	
+	// Back on current node
+	set node = ..XMLDocument.GetNode(newNodeId)
+	
+	set attributeName = ""
+	do ..SetAttributesToNode(.node, .nodeAttributes)
+
+	// Node wil be the same as before
+	d node.MoveToNextSibling()
+	do ..SetAttributesToNode(.node, .nodeAttributes)
+	
+	quit newNodeId
+]]></Implementation>
+</Method>
+
+<Method name="SetAttributesToNode">
+<Description>
+Set node attributes
+nodeAttributes - array of node attributes</Description>
+<FormalSpec><![CDATA[&node:%XML.Node,&nodeAttributes]]></FormalSpec>
+<Implementation><![CDATA[
+	set attributeName = ""
+	for{
+		set attributeName = $O(nodeAttributes(attributeName))
+		quit:attributeName=""
+		set name = nodeAttributes(attributeName,"name")
+		set value = nodeAttributes(attributeName,"value")
+		set namespace = nodeAttributes(attributeName,"namespace")
+		
+		do node.SetAttribute(name, namespace, value)
+	}
+]]></Implementation>
+</Method>
+
+<Method name="SaveNodeAttributes">
+<Description>
+Save node attributes in array nodeAttributes</Description>
+<FormalSpec><![CDATA[&node:%XML.Node,&nodeAttributes]]></FormalSpec>
+<Implementation><![CDATA[
+	set attributeName = node.FirstAttributeName()
+	set nodeAttributes = ""
+	while attributeName'=""{
+		set name = node.GetAttributeQName(attributeName)
+		set value = node.GetAttributeValue(attributeName)
+		set namespace = node.GetAttributeNamespace(attributeName)
+		
+		set nodeAttributes(attributeName, "name") = name
+		set nodeAttributes(attributeName, "value") = value
+		set nodeAttributes(attributeName, "namespace") = namespace
+
+		set attributeName = node.NextAttributeName(attributeName)
+	}
+]]></Implementation>
+</Method>
+
+<Method name="ReplaceNode">
+<FormalSpec><![CDATA[&node:%XML.Node,text:%String=""]]></FormalSpec>
+<Implementation><![CDATA[
+	set nodeAttributes = ""
+	do ..SaveNodeAttributes(.node, .nodeAttributes)
+	// ending space replaced whith nonbreaking space
+	set text = ..Replaceon160(text)
+	do node.ReplaceElement(node.LocalName, node.Namespace, text, node.QName)
+	do ..SetAttributesToNode(.node, .nodeAttributes)
+]]></Implementation>
+</Method>
+
+<Method name="Replaceon160">
+<FormalSpec>text</FormalSpec>
+<Implementation><![CDATA[
+	if $E(text)=" "{
+		set $E(text) = $C(160)
+	}
+	if $E(text,*)=" "{
+		set $E(text, *) = $C(160)	
+	}
+	quit text
+]]></Implementation>
+</Method>
+
+<Method name="SyntaxParse">
+<Description>
+Syntax parsers. Used as  TraverseXml argument
+Check the sytax, saves tag information</Description>
+<FormalSpec>node:%XML.Node</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set textExist = 0
+	set text = ""
+	try{
+		set textExist = node.GetText(.text, 0 )
+	}
+	catch{	}
+	if 'textExist quit ""
+	set isFound = $match(text,"\{%.*%\}")
+	if 'isFound quit ""
+
+	set variableRegExp = "([A-Za-z]+[A-Za-z0-9]*"_"(\(.+\)){0,1})"
+	set variableRegExpWithDots = "([A-Za-z]+[A-Za-z0-9\.]*"_"(\(.+\)){0,1})"
+	set globalVariableRegExp = "((\^)|(\^\|\|)|(\^\|\"".+\""\|))"_variableRegExpWithDots
+	set anyVariableRegExp = "(("_globalVariableRegExp_")|("_variableRegExp_"))"
+	set numberRegExp = "\d+(\.\d+)?"
+
+	set beginOfEndOrderRegExp = "\{%"_"\s*"_"(?i)endorder(?-i)"
+	set beginOfOrderRegExp = "\{%"_"\s*"_"(?i)order(?-i)"
+	set beginOfEndIfRegExp = "\{%"_"\s*"_"(?i)endif(?-i)"
+	set beginOfIfRegExp = "\{%"_"\s*"_"(?i)if(?-i)"
+	set beginOfSetRegExp = "\{%"_"\s*"_"(?i)set(?-i)\s+"
+	
+	// Check 'endorder' tag
+	if $locate(text, beginOfEndOrderRegExp)'=0{
+		set fullEndOrderRegExp = beginOfEndOrderRegExp_"\s*"_"%\}"
+		set isEndOrderCorrect = $match(text, fullEndOrderRegExp)
+		if 'isEndOrderCorrect quit "Incorrect sytax of  'endorder' tag: "_text
+		set currentTagType = $$$PopFromStack(..TagTypeStack)
+		if currentTagType="" quit "Unexpected 'endorder', must be preceded by 'order'"
+		if currentTagType'="order" quit "Unexpected 'endorder', expecting closing of "_currentTagType
+		set orderTagNodeId = ..PopFromOrderStack()
+		set ..OrderTags(orderTagNodeId) = node.NodeId
+	}
+	
+	// Check 'Order' tag
+	
+	elseif $locate(text,beginOfOrderRegExp,0)'=0{
+		set fullOrderRegExp = beginOfOrderRegExp_"\s+"_anyVariableRegExp_"\s+"_variableRegExp_"\s*"_"%\}"
+		set isOrderCorrect = $match(text, fullOrderRegExp)
+		if 'isOrderCorrect quit "Incorrect sytax of  'order' tag: "_text
+		$$$PushToStack(..TagTypeStack,"order")
+		d ..PushToOrderStack(node.NodeId)
+		// find array name
+		// Skip order
+		set val = "", start = 0
+		set start = $locate(text, beginOfOrderRegExp_"\s+", start , end, val)
+		set start = end
+		set start = $locate(text, anyVariableRegExp, start ,end , val)
+		set start = end
+		set ..OrderTags(node.NodeId,"mas") = val
+		// find index
+		set start = $locate(text, variableRegExp, start , end, val)
+		set ..OrderTags(node.NodeId,"index") = val
+	}
+	
+	// Check 'endif' tag
+	
+	elseif $locate(text, beginOfEndIfRegExp, 0)'=0{
+		set fullEndIfRegExp = beginOfEndIfRegExp_"\s*"_"%\}"
+		set isEndifCorrect = $match(text, fullEndIfRegExp)
+		if 'isEndifCorrect quit "Incorrect sytax of  'endif' tag: "_text
+		set currentTagType = $$$PopFromStack(..TagTypeStack)
+		if currentTagType="" quit "Unexpected 'endif', must be preceded by 'if'"
+		if currentTagType'="if" quit "НUnexpected 'endif', expecting closing of  "_currentTagType
+		set ifTagNodeId = ..PopFromIfStack()
+		set ..IfTags(ifTagNodeId) = node.NodeId
+	}
+	
+	// Check 'if' tag
+	
+	elseif $locate(text,beginOfIfRegExp,0)'=0{
+		set fullIfRegExp = beginOfIfRegExp_"\s+"_".+"_"\s*"_"%\}"
+		set isIfCorrect = $match(text, fullIfRegExp)
+		if 'isIfCorrect quit "Incorrect sytax of  'if' tag: "_text
+		$$$PushToStack(..TagTypeStack,"if")
+		d ..PushToIfStack(node.NodeId)
+		set ..IfTags(node.NodeId) = ""
+		// Find if expression
+		set start = $locate(text, beginOfIfRegExp_"\s+",0,end)
+		set val = $ZSTRIP($P($E(text,end,*),"%}",1),"<>W")
+		set ..IfTags(node.NodeId,"expression") = val
+	}
+	// Check 'set' tag 
+	elseif $locate(text, beginOfSetRegExp,0)'=0{
+		set fullSetRegExp = beginOfSetRegExp_variableRegExp_"\s*=\s*"_".+"_"\s*"_"%\}"
+		set isSetCorrect = $match(text, fullSetRegExp)
+		if 'isSetCorrect quit "Incorrect sytax of  'set' tag: "_text
+		set setVariable=""
+		set val = "", start = 0
+		set start = $locate(text, beginOfSetRegExp, start , end, val)
+		set start = end
+		set start = $locate(text,variableRegExp,start,end,setVariable)
+		set ..SetTags(node.NodeId,"variable") = setVariable
+		set setExpression = $ZSTRIP($P($P(text,"=",2),"%}",1),"<>W")
+		set ..SetTags(node.NodeId,"expression") = setExpression
+	}
+	else{
+		quit "Unknown tag: "_text	
+	}
+	// Delete text of the tag
+	do ..ReplaceNode(.node, "")
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="FindSiblings">
+<Description>
+Find siblings for repetition or conditional output
+ref - array reference  with xml nodes in which tags is contained
+refResult - result array referece with xml nodes which will be repeated in the future or skipped in case of 'if' tag processing</Description>
+<FormalSpec>ref,refResult</FormalSpec>
+<Implementation><![CDATA[
+	set firstNodeId = ""
+	for{
+		set firstNodeId = $Order(@ref@(firstNodeId))
+		quit:firstNodeId=""
+		set lastNodeId = @ref@(firstNodeId)
+		set firstNode = ..XMLDocument.GetNode(firstNodeId)
+		set lastNode = ..XMLDocument.GetNode(lastNodeId)
+		set node = ..GetCommonAnscestor(firstNode, lastNode)
+		d node.MoveToFirstChild()
+		set siblingsExist = 1
+		while siblingsExist{
+			if ..IsDescendant(node, firstNode){
+				set firstSiblingNodeId = node.NodeId
+			}
+			if ..IsDescendant(node,lastNode){
+				set lastSiblingNodeId = node.NodeId
+			}
+			set siblingsExist = node.MoveToNextSibling()
+		}
+		// Copy tag parameters
+	    merge @refResult@(firstSiblingNodeId) = @ref@(firstNodeId)
+	    set @refResult@(firstSiblingNodeId) = lastSiblingNodeId 
+	}
+]]></Implementation>
+</Method>
+
+<Method name="IsNodeEmpty">
+<Description>
+Check if the node and his children are empty</Description>
+<FormalSpec>node:%XML.Node</FormalSpec>
+<ReturnType>%Boolean</ReturnType>
+<Implementation><![CDATA[
+	set result = ..TraverseXmlTree(node, "NodeEmptyForTraverse","")
+	if result = "" quit 1
+	quit 0
+]]></Implementation>
+</Method>
+
+<Method name="NodeEmptyForTraverse">
+<FormalSpec>node:%XML.Node</FormalSpec>
+<Implementation><![CDATA[
+	set textExist=0
+	set text = ""
+	try{
+		set textExist = node.GetText(.text, 0 )
+	}
+	catch{	}
+	if textExist && (text'="") quit 0
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="ReplaceHtmlSymbols">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>string</FormalSpec>
+<Implementation><![CDATA[
+	set newString = $Replace(string,"<","&lt;")
+	set newString = $Replace(newString,">","&gt;")
+	set newString = $Replace(newString,"&","&amp;")
+	set newString = $Replace(newString,"""","&quot;")
+	quit newString
+]]></Implementation>
+</Method>
+
+<Method name="EvaluateExpression">
+<Description>
+Evaluate expression in global namespace</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>expression</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	do ..WriteDebug("Evaluate expression "_expression)
+	// Replace quotes with ordinary quotes ,
+	set expression = $Replace(expression,$C(8221),"""")
+	set expression = $Replace(expression,$C(8220),"""")
+	set expression = $Replace(expression,$C(8217),"'")
+	set expression = $Replace(expression, $C(171),"""")
+	set expression = $Replace(expression, $C(187),"""")
+	set expression = $xecute("quit "_expression)
+	quit $Replace(expression,"_"," ")
+]]></Implementation>
+</Method>
+
+<Method name="DeclareIndex">
+<Description>
+Declare index in global namespace</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>indexRef</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	do ..WriteDebug("Declare index "_indexRef)
+	set @indexRef=""
+]]></Implementation>
+</Method>
+
+<Method name="OrderMas">
+<Description>
+ Apply order in global namespace</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>masRef,indexRef</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	set @indexRef = $Order(@masRef@(@indexRef))
+	quit @indexRef
+]]></Implementation>
+</Method>
+
+<Method name="KillIndex">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>indexRef</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	do ..WriteDebug("Index is killed "_indexRef)
+	k @indexRef
+]]></Implementation>
+</Method>
+
+<Method name="SetVariable">
+<Description>
+Assinging in global namespace</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>variableRef,value</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	do ..WriteDebug("Set variable "_variableRef_" ="_value)
+	set @variableRef = value
+]]></Implementation>
+</Method>
+
+<Method name="GetCommonAnscestor">
+<Description>
+Return CommonAnscestor of two xml nodes or "" if they don't have one</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>node1:%XML.Node,node2:%XML.Node</FormalSpec>
+<ReturnType>%XML.Node</ReturnType>
+<Implementation><![CDATA[
+	set node = node1.%ConstructClone()
+	set anscestorNotFound = 1
+	while anscestorNotFound{
+		if ..IsDescendant(node, node2) {
+			set anscestorNotFound=0
+			quit
+		}else{
+			try{
+				set parentExist = node.MoveToParent()
+				if 'parentExist quit
+			}catch{
+			}
+		}
+
+	}
+	if 'anscestorNotFound quit node
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="IsDescendant">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>parentNode:%XML.Node,node:%XML.Node</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set result = 0
+	if node.NodeId=parentNode.NodeId quit 1	
+	if parentNode.HasChildNodes(){
+		d parentNode.MoveToFirstChild()
+		set siblingsExist = 1
+		while siblingsExist{
+			set result = ..IsDescendant(.parentNode, node)
+			if result=1 quit
+			set siblingsExist = parentNode.MoveToNextSibling()
+		}
+		d parentNode.MoveToParent()
+	}
+	quit result
+]]></Implementation>
+</Method>
+
+<Method name="PopFromOrderStack">
+<Implementation><![CDATA[
+	set value = $$$PopFromStack(..OrderTagsStack)
+	quit value
+]]></Implementation>
+</Method>
+
+<Method name="PushToOrderStack">
+<FormalSpec>value</FormalSpec>
+<Implementation><![CDATA[	$$$PushToStack(..OrderTagsStack, value)
+]]></Implementation>
+</Method>
+
+<Method name="PopFromIfStack">
+<Implementation><![CDATA[
+	set value = $$$PopFromStack(..IfTagsStack)
+	quit value
+]]></Implementation>
+</Method>
+
+<Method name="PushToIfStack">
+<FormalSpec>value</FormalSpec>
+<Implementation><![CDATA[	$$$PushToStack(..IfTagsStack, value)
+]]></Implementation>
+</Method>
+
+<Method name="WriteXmlNode">
+<FormalSpec><![CDATA[&xmlNode:%XML.Node]]></FormalSpec>
+<Implementation><![CDATA[
+	set textExist =0
+		try{
+			set textExist = xmlNode.GetText(.text, 0 )
+		}
+		catch{	}
+			if textExist && (text'=""){
+				do ..WriteDebug(xmlNode.NodeId_" Name: "_xmlNode.QName_"; text: "_text)
+			}
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="WriteDebug">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>string</FormalSpec>
+<Implementation><![CDATA[
+	//write !,string
+	//set counter = $O(^DocumentPatternLog($J,$H,""),-1)
+	//set ^DocumentPatternLog($J,$H,counter + 1,string)=""
+]]></Implementation>
+</Method>
+</Class>
+
+
+<Class name="DocumentTemplate.DocumentTemplate">
+<Description><![CDATA[
+Class <CLASS>DocumentPatterns</CLASS> represents a template of docs or odt document
+<p>^DocumentTemplateSettings - global for settgins </p>
+<p>^DocumentTemplateSettings("workingDirectory") - working directory for export/import files. By default: install-dir\mgr\Temp</p>
+<p>^DocumentTemplateSettings("zipCommand") - system command for making zip archive (take filename and directory)</p>
+<p>^DocumentTemplateSettings("unzipCommand") - system command for unzipping (take filename and directory)</p>
+<p> Zip/unzip commands must contain words $Fullfilename and $Directory for replacing with actual filename and directory name </p>
+<p> zip command is executed in directory of unpacked document </p>
+<p> Example for windows 7z </p>
+<p> ^DocumentTemplateSettings("zipCommand")="""C:\Program Files\7-Zip\7z.exe"" a -y $Fullfilename $Directory\*"</p>
+<p> ^DocumentTemplateSettings("unzipCommand")="""C:\Program Files\7-Zip\7z.exe"" x -y -o$Directory $Fullfilename"</p>
+<p> Example for linux zip unzip</p>
+<p> unzip -u -q -d $Directory  $Fullfilename </p>
+<p> zip -r -u -q $Fullfilename ./*</p>
+<p>^DocumentTemplateSettings("maxOrderIterations") - for protection against infinite loops, maximum iterations in order loop. 128000 by default]]></Description>
+<IncludeCode>%sySystem</IncludeCode>
+<Super>%Persistent</Super>
+<TimeChanged>65302,53321.938742</TimeChanged>
+<TimeCreated>65269,53489.315986</TimeCreated>
+
+<Property name="Content">
+<Description>
+Document binary content </Description>
+<Type>%Stream.GlobalBinary</Type>
+<Required>1</Required>
+</Property>
+
+<Property name="Group">
+<Description>
+Group of templates</Description>
+<Type>%String</Type>
+</Property>
+
+<Property name="Filename">
+<Description>
+Filename</Description>
+<Type>%String</Type>
+</Property>
+
+<Property name="Description">
+<Description>
+Document description</Description>
+<Type>%String</Type>
+<Parameter name="MAXLEN" value="512"/>
+</Property>
+
+<Property name="DateTime">
+<Description>
+Datetime of loading</Description>
+<Type>%DateTime</Type>
+<Required>1</Required>
+</Property>
+
+<Index name="Name">
+<Properties>Filename</Properties>
+<Unique>1</Unique>
+</Index>
+
+<Method name="GetDocument">
+<Description>
+Get document by name and group name</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>name:%String</FormalSpec>
+<ReturnType>DocumentTemplate.DocumentTemplate</ReturnType>
+<Implementation><![CDATA[
+	set doc = ##class(DocumentTemplate.DocumentTemplate).NameOpen(name, 2, .sc)
+	if $$$ISOK(sc){
+		quit doc
+	}
+	else{
+		quit ""
+	}
+]]></Implementation>
+</Method>
+
+<Method name="LoadDocument">
+<Description><![CDATA[
+Load template in database
+<var>fullFulename</var> - full filename of the document
+<var>name</var> - name of template in database
+<var>group</var> - group of template]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>fullFilename:%String,name:%String,group:%String="default",description:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set stream=##class(%Stream.FileBinary).%New()
+	set newDocument=##class(DocumentTemplate.DocumentTemplate).%New()
+	set sc=stream.LinkToFile(fullFilename)
+	if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc)
+	set newDocument.Group = group
+	set newDocument.Description = $G(description)
+	set newDocument.Filename = name
+	set newDocument.DateTime = $ZDT($H,3,3)
+	set sc = newDocument.Content.CopyFromAndSave(stream)
+	if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc)
+	set sc = newDocument.%Save()
+	if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc)
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="LoadDocumentFromGlobal">
+<Description>
+Load document from global</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>masRef,name,group:%String="default"</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set newDocument=##class(DocumentTemplate.DocumentTemplate).%New()
+	set newDocument.Group = group
+	set newDocument.Filename = name
+	set newDocument.DateTime = $ZDT($H,3,3)
+	set streamFrom = ##class(%Stream.GlobalBinary).%New()
+	set streamFrom.%Location = masRef
+	set sc = newDocument.Content.CopyFromAndSave(streamFrom)
+	if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc)
+	set sc = newDocument.%Save()
+	if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc)
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="RenderDocumentToPrivateGlobal">
+<Description><![CDATA[
+Render document template to  private global
+<var>templateName</var>
+<var>masRef</var> - global reference 
+<var>deleteFile</var> - remove rendered document in working directory ]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>templateName:%String,masRef:%String="^||RenderedDocument",deleteFile:%Boolean=0</FormalSpec>
+<Implementation><![CDATA[
+	if masRef'["^||" quit "masRef - must be private global reference"
+	k @masRef	
+	
+	set renderedFilename = $Replace($H,",","-")_"-"_$J_"-"_documentTemplate.Filename
+	set fullRenderedFilename = ##class(%File).NormalizeFilename(renderedFilename, workingDirectory)
+	
+	set error = ..RenderDocument(templateName, fullRenderedFilename)
+	if error '="" quit error
+	
+	// Copy document to global
+	set stream=##class(%Stream.FileBinary).%New()
+	set sc=stream.LinkToFile(fullRenderedFilename)
+	if $$$ISERR(sc)  quit $system.OBJ.DisplayError(sc) 
+	set streamTo = ##class(%Stream.GlobalBinary).%New(masRef)
+	set sc = streamTo.CopyFromAndSave(stream)
+	if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc) 
+	
+	// Delete document 
+	if deleteFile=1{
+		d ##class(%File).ComplexDelete(fullRenderedFilename)
+		d ..WriteDebug("Delete file "_fullRenderedFilename)
+	}
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="RenderDocument">
+<Description><![CDATA[
+Render document template
+<var>templateName</var>
+<var>renderedDocumentFullFilename</var> - full filename of rendered document. If not given than document will created in working directory]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>templateName:%String,renderedDocumentFullFilename:%String=""</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	
+	set documentTemplate = ##class(DocumentTemplate.DocumentTemplate).GetDocument(templateName)
+	if documentTemplate="" quit "Template with name  "_templateName_" not found"
+	
+	set workingDirectory = ..GetWorkingDirectory()
+	
+	if workingDirectory=""{
+		quit "The working directory is not set. s ^DocumentTemplateSettings(""workingDirectory"")=""your working directory"""
+	}
+	set created = ##class(%File).CreateDirectoryChain(workingDirectory)
+	if created'=1{
+		quit "Can't create working directory"
+	}
+	d ..WriteDebug("Working directory exists")
+	
+	//Copy template in working directory if it doesn't exist
+	set templateFilename = $Replace($ZDTH(documentTemplate.DateTime,3,3),",","-")_"-"_documentTemplate.Filename
+	
+	
+	set templateFullFilename = ##class(%File).NormalizeFilename(templateFilename, workingDirectory)
+	if '##class(%File).Exists(templateFullFilename){
+		set sc = documentTemplate.CopyOnDisk(workingDirectory, templateFilename)
+		if $$$ISERR(sc) quit $system.OBJ.DisplayError(sc)
+	}
+	
+	quit ..RenderDocumentFromTemplate(templateFullFilename, renderedDocumentFullFilename)
+]]></Implementation>
+</Method>
+
+<Method name="RenderDocumentFromTemplate">
+<Description><![CDATA[
+Render document from template which is was not loaded to database
+<var>fullFilenameTemplate</var> full path to the template
+<var>renderedFilename</var> - fullname of result document]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>templateFullFilename,renderedDocumentFullFilename</FormalSpec>
+<Implementation><![CDATA[
+	set workingDirectory = ..GetWorkingDirectory()
+	
+	if workingDirectory=""{
+		quit "The working directory is not set. s ^DocumentTemplateSettings(""workingDirectory"")=""your working directory"""
+	}
+	set created = ##class(%File).CreateDirectoryChain(workingDirectory)
+	if created'=1{
+		quit "Can't create working directory"
+	}
+	d ..WriteDebug("Working directory exists")
+	
+	// Directory name for unpacking: unpackin_datetime-$J-templatename
+	set templateFilename = ##class(%File).GetFilename(templateFullFilename)
+	set unpackDirectory = $Replace(templateFilename,".","-")
+	set fullUnpackDirectory = ##class(%File).NormalizeFilename(unpackDirectory, workingDirectory)
+	
+	set sc = ..Unpack(templateFullFilename, fullUnpackDirectory)
+	if sc'="" d ..WriteDebug(sc) quit sc
+	d ..WriteDebug("Template unpacked")
+	set error = ##class(DocumentTemplate.DocXmlRenderer).%New(fullUnpackDirectory).Render()
+	if error'="" d ..WriteDebug("Error while template processing "_error) quit error
+
+	if $G(renderedDocumentFullFilename)="" {
+		set renderedDocumentFullFilename = ##class(%File).NormalizeFilename($Replace($H,",","-")_"-"_$J_"-"_templateFilename, workingDirectory)
+	}
+	
+	set sc = ..Pack(fullUnpackDirectory, renderedDocumentFullFilename)
+	if $$$ISERR(sc) do clean quit $system.OBJ.DisplayError(sc) 
+	
+	do clean
+
+	quit ""
+clean
+	// Delete directory of unpacked template
+	do ##class(%File).RemoveDirectoryTree(fullUnpackDirectory)
+	d ..WriteDebug("Remove directory "_fullUnpackDirectory)
+
+	quit
+]]></Implementation>
+</Method>
+
+<Method name="GetWorkingDirectory">
+<ClassMethod>1</ClassMethod>
+<Implementation><![CDATA[	quit $Get(^DocumentTemplateSettings("workingDirectory"),$Get(^%SYS("TempDir")))
+]]></Implementation>
+</Method>
+
+<Method name="Unpack">
+<Description>
+Unpack document in directory </Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>fullFilename:%String,directory:%String</FormalSpec>
+<ReturnType>%String</ReturnType>
+<Implementation><![CDATA[
+	set zipCommand = ..GetUnzipCommand(fullFilename, directory)
+	if zipCommand=""{
+		quit "Command for unzip is not set: set ^DocumentTemplateSettings(""unzipCommand"")=""your command"""
+	}
+	
+	set created = ##class(%File).CreateDirectoryChain(directory)
+	if 'created{
+		quit "Error while creating directory for unpacking template "
+	}
+	// Save current directory
+	set curDir = ##class(%SYSTEM.Process).CurrentDirectory()
+	do ##class(%SYSTEM.Process).CurrentDirectory(directory)
+	set sc = $ZF(-1, zipCommand)
+	if sc>1{
+		d ##class(%SYSTEM.Process).CurrentDirectory(curDir)
+		quit "Error while unpacking. Command: "_zipCommand_" returned "_sc
+	}
+	// Restore current directory
+	d ##class(%SYSTEM.Process).CurrentDirectory(curDir)
+	
+	quit ""
+]]></Implementation>
+</Method>
+
+<Method name="Pack">
+<Description>
+Pack document</Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>directory:%String,fullFilename:%String</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	set zipCommand = ..GetZipCommand(fullFilename, directory)
+	if zipCommand=""{
+		quit "Command for zip is not set: set ^DocumentTemplateSettings(""zipCommand"")=""your command"""
+	}
+	
+	set exists = ##class(%File).Exists(directory)
+	if 'exists{
+		quit "Error directory doesn't exist "
+	}
+	// Save current directory
+	set curDir = ##class(%SYSTEM.Process).CurrentDirectory()
+	do ##class(%SYSTEM.Process).CurrentDirectory(directory)
+	set sc = $ZF(-1, zipCommand)
+	if sc>1{
+		d ##class(%SYSTEM.Process).CurrentDirectory(curDir)
+		quit "Error while packing. Command: "_zipCommand_" returned "_sc
+	}
+	// Restore current directory 
+	d ##class(%SYSTEM.Process).CurrentDirectory(curDir)
+	quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="GetZipCommand">
+<Description><![CDATA[
+Method takes ^DocumentTemplateSettings("zipCommand") and insert fullfilename and directory
+Return  command for pack <var>directory</var> in file <var>fullFilename</var>]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>fullFilename,directory</FormalSpec>
+<Implementation><![CDATA[
+	set zipCommand = $Replace($Get(^DocumentTemplateSettings("zipCommand")), "$Directory", directory)
+	set zipCommand = $Replace(zipCommand, "$Fullfilename", fullFilename)
+	quit zipCommand
+]]></Implementation>
+</Method>
+
+<Method name="GetUnzipCommand">
+<Description><![CDATA[
+Method takes ^DocumentTemplateSettings("unzipCommand") and insert fullfilename and directory
+Return command for unpack file <var>fullFilename</var> in directory <var>directory</var> ]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>fullFilename,directory</FormalSpec>
+<Implementation><![CDATA[
+	set zipCommand = $Replace($Get(^DocumentTemplateSettings("unzipCommand")), "$Directory", directory)
+	set zipCommand = $Replace(zipCommand, "$Fullfilename", fullFilename)
+	quit zipCommand
+]]></Implementation>
+</Method>
+
+<Method name="CopyOnDisk">
+<Description><![CDATA[
+Copy template from database in directory
+<var>directory</var> 
+<var>filename</var>]]></Description>
+<FormalSpec>directory:%String,filename:%String=""</FormalSpec>
+<ReturnType>%Status</ReturnType>
+<Implementation><![CDATA[
+	if filename="" set filename = ..Filename
+	set fullFilename = ##class(%File).NormalizeFilename(filename, directory)
+	set stream=##class(%Stream.FileBinary).%New()
+	set sc=stream.LinkToFile(fullFilename)
+	if $$$ISERR(sc) quit sc
+	set sc = stream.CopyFromAndSave(..Content)
+	if $$$ISERR(sc) quit sc
+	quit $$$OK
+]]></Implementation>
+</Method>
+
+<Method name="WriteDebug">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>string</FormalSpec>
+<Implementation><![CDATA[
+	//write !,string
+	//set counter = $O(^DocumentPatternLog($J,$H,""),-1)
+	//set ^DocumentPatternLog($J,$H,counter + 1,string)=""
+]]></Implementation>
+</Method>
+
+<Storage name="Default">
+<Type>%Library.CacheStorage</Type>
+<DataLocation>^DocumentTe84A8.DocumentTem84A8D</DataLocation>
+<DefaultData>DocumentTemplateDefaultData</DefaultData>
+<IdLocation>^DocumentTe84A8.DocumentTem84A8D</IdLocation>
+<IndexLocation>^DocumentTe84A8.DocumentTem84A8I</IndexLocation>
+<StreamLocation>^DocumentTe84A8.DocumentTem84A8S</StreamLocation>
+<Data name="DocumentTemplateDefaultData">
+<Value name="1">
+<Value>%%CLASSNAME</Value>
+</Value>
+<Value name="2">
+<Value>Content</Value>
+</Value>
+<Value name="3">
+<Value>Group</Value>
+</Value>
+<Value name="4">
+<Value>Filename</Value>
+</Value>
+<Value name="5">
+<Value>Description</Value>
+</Value>
+<Value name="6">
+<Value>DateTime</Value>
+</Value>
+</Data>
+</Storage>
+</Class>
+
+
+<Routine name="DocumentTemplate.General" type="INC" timestamp="65269,53058.445501"><![CDATA[
+#Define PushToStack(%list, %value) set %list = $LU(%list, $LL(%list)+1, %value)
+#Define PopFromStack(%list) $S($LL(%list) > 0:$LI(%list,*),1:"")   if ( $LL(%list) > 0 ) set %list=$LI(%list,1,*-1)
+
+
+]]></Routine>
+
+
+<Project name="DocumentTemplate" LastModified="2019-10-17 16:43:28.656143" Target="##class(DocumentTemplate.Test).RunTest(&quot;ListAndTable&quot;,&quot;c:\Users\Artem\dev\vagrant_machines\fedora28\TestDocs\&quot;,&quot;odt&quot;)" TargetType="0">
+  <Items>
+    <ProjectItem name="DocumentTemplate.DocXmlRenderer" type="CLS"></ProjectItem>
+    <ProjectItem name="DocumentTemplate.DocumentTemplate" type="CLS"></ProjectItem>
+    <ProjectItem name="DocumentTemplate.General.INC" type="MAC"></ProjectItem>
+    <ProjectItem name="DocumentTemplate.Test" type="CLS"></ProjectItem>
+  </Items>
+</Project>
+
+
+<Class name="DocumentTemplate.Test">
+<TimeChanged>65302,53661.813945</TimeChanged>
+<TimeCreated>65269,53946.845165</TimeCreated>
+
+<Method name="LoadTestDocs">
+<Description><![CDATA[
+Load all test documents in the database from the <var>directory</var>]]></Description>
+<ClassMethod>1</ClassMethod>
+<FormalSpec>directory</FormalSpec>
+<Implementation><![CDATA[
+	set namesList = ..GetTestNames()
+	set ptr=0
+	while $listnext(namesList, ptr, name){
+		for extension = "docx","odt"{
+			set fileName = name_"."_extension
+			set existingDocument = ##class(DocumentTemplate.DocumentTemplate).GetDocument(fileName)
+			if existingDocument{
+				d ##class(DocumentTemplate.DocumentTemplate).%DeleteId(existingDocument.%Id())
+			}
+			set documentFile = ##class(%File).NormalizeFilename(fileName, directory) 
+			set error = ##class(DocumentTemplate.DocumentTemplate).LoadDocument(documentFile, fileName, "test")
+			if error'=""{
+				write !,"Error while loading test document "_documentFile_": ",!,"	"_error
+			} 
+			else{
+				write !,"Test document "_documentFile_" is loaded"
+			}
+		}
+	}
+]]></Implementation>
+</Method>
+
+<Method name="RunAllTests">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>directory="",extension=""</FormalSpec>
+<Implementation><![CDATA[
+	set namesList = ..GetTestNames()
+	set ptr=0
+	while $listnext(namesList, ptr, name){
+		do ..RunTest(name, directory, extension)
+	}
+]]></Implementation>
+</Method>
+
+<Method name="GetTestNames">
+<ClassMethod>1</ClassMethod>
+<Implementation><![CDATA[
+	quit $LB("SimpleTextSubstitution",
+			 "ExpressionSubstitution",
+			 "IfParagraph",
+			 "IfRows",
+			 "OrderTableRows",
+			 "OrderTableRowsAndColumns",
+			 "OrderParagraph",
+			 "OrderTableColumns",
+			 "NestedOrder",
+			 "NestedOrderIf",
+			 "HeadersAndFooters",
+			 "RowCounter",
+			 "ListAndTable",
+			 "ThreeDigits",
+			 "SamplePersonsTable"
+	)
+]]></Implementation>
+</Method>
+
+<Method name="RunTest">
+<ClassMethod>1</ClassMethod>
+<FormalSpec>testName,directory="",extension=""</FormalSpec>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	try{
+	//create context for test
+	do $classmethod("DocumentTemplate.Test", "Test"_testName)
+	
+	if extension=""{
+		set extensionList=$LB("docx","odt")
+	}
+	else{
+		set extensionList=$LB(extension)
+	}
+	set ptr=0
+	while $listnext(extensionList, ptr, extension){
+		set templateFilename = testName_"."_extension
+		if directory'=""{
+			set templateFullFilename = ##class(%File).NormalizeFilename(templateFilename, directory)
+			set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocumentFromTemplate(templateFullFilename)
+		}
+		else{
+			set error = ##class(DocumentTemplate.DocumentTemplate).RenderDocument(templateFilename)
+		}
+		if error'=""{
+			write !, "Error while rendering template "_testName
+			write !,error
+		}
+		else {
+			write !, "Template "_testName_" is rendered successfully"
+		}
+	}
+	}
+	catch error{
+		write !, "Error while rendering template "_testName
+		write !, error.Name_" "_error.Location
+	}
+]]></Implementation>
+</Method>
+
+<Method name="GetTestStrings">
+<ClassMethod>1</ClassMethod>
+<FormalSpec><![CDATA[&var]]></FormalSpec>
+<Implementation><![CDATA[
+	
+	kill var
+	set var(1) = "Appear weak when you are strong, and strong when you are weak"
+	set var(2) = "The supreme art of war is to subdue the enemy without fighting"
+	set var(3) = "If you know the enemy and know yourself, you need not fear the result of a hundred battles. If you know yourself but not the enemy, for every victory gained you will also suffer a defeat. If you know neither the enemy nor yourself, you will succumb in every battle."
+	set var(4) = "Let your plans be dark and impenetrable as night, and when you move, fall like a thunderbolt."
+	set var(5) = "Supreme excellence consists of breaking the enemy's resistance without fighting."  
+	set var(6) = "All warfare is based on deception. Hence, when we are able to attack, we must seem unable; when using our forces, we must appear inactive; when we are near, we must make the enemy believe we are far away; when far away, we must make him believe we are near."
+]]></Implementation>
+</Method>
+
+<Method name="TestSimpleTextSubstitution">
+<ClassMethod>1</ClassMethod>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	set header = "Somehting on the top"
+	set footer1 = "I'm in the left bottom"
+	set footer2 = "I'm in the middle"
+	set footer3 = "I'm in the right corner"
+	set title = "Simple example of text substitution"
+	set a = "center of the page"
+	set b = "String width are matter"
+]]></Implementation>
+</Method>
+
+<Method name="TestExpressionSubstitution">
+<ClassMethod>1</ClassMethod>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	set a = "First part"
+	set b = "and second part"
+]]></Implementation>
+</Method>
+
+<Method name="TestOrderParagraph">
+<ClassMethod>1</ClassMethod>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[	do ..GetTestStrings(.paragraph)
+]]></Implementation>
+</Method>
+
+<Method name="TestOrderTableRows">
+<ClassMethod>1</ClassMethod>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	for i=1:1:15{
+		set firstColumn(i)="firsRow "_i
+	}
+	for j=1:1:10{
+		set secondColumn(j)="secondRow"_j
+	}
+]]></Implementation>
+</Method>
+
+<Method name="TestOrderTableColumns">
+<ClassMethod>1</ClassMethod>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	kill row1, row1, row3
+	for i=1:1:3{
+		set row1(i) = "row1 "_i
+	}
+	for i=1:1:3{
+		set row2(i) = "row2 "_i
+	}
+	for i=1:1:3{
+		set row3(i) = "row3 "_i
+	}
+]]></Implementation>
+</Method>
+
+<Method name="TestOrderTableRowsAndColumns">
+<ClassMethod>1</ClassMethod>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	kill table
+	for i=1:1:10{
+		for j=1:1:5{
+			set table(i,j)="r "_i_"c "_j
+		}
+	}
+]]></Implementation>
+</Method>
+
+<Method name="TestIfParagraph">
+<ClassMethod>1</ClassMethod>
+<ProcedureBlock>0</ProcedureBlock>
+</Method>
+
+<Method name="TestIfRows">
+<ClassMethod>1</ClassMethod>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	kill row
+	for i=1:1:4{
+		if i#2{
+			set row(i) = "visible row"
+		}
+		else{
+			set row(i) = "invisible row"
+		}
+	}
+]]></Implementation>
+</Method>
+
+<Method name="TestNestedOrder">
+<ClassMethod>1</ClassMethod>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	for i=1:1:13{
+		for j=1:1:120{
+			if j=1{
+				set paragraphs(i,j) = "Word "_i_" "_j
+			}
+			else{
+				if j#7=1{
+					set paragraphs(i,j) = ". Word "_i_" "_j
+				}
+				else{
+					set paragraphs(i,j) = "word "_i_" "_j
+				}
+			}
+			
+		}
+	}
+]]></Implementation>
+</Method>
+
+<Method name="TestNestedOrderIf">
+<ClassMethod>1</ClassMethod>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	kill paragraphs
+	for i=1:1:13{
+		for j=1:1:11{
+			set paragraphs(i,j) = "word "_i_" "_j
+		}
+	}
+]]></Implementation>
+</Method>
+
+<Method name="TestHeadersAndFooters">
+<ClassMethod>1</ClassMethod>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	set top1 = "First page"
+	set bottom = "End of the first page"
+	set top2 = "Second page"
+	set bottom2 = "End of the second page"
+	set topLeft = "Left corner"
+	set topMiddle = "I'm in the middle"
+	set topRight = "Right corner"
+	set top4 = "top3 is missing"
+	set bottom4 = "End of the document"
+]]></Implementation>
+</Method>
+
+<Method name="TestRowCounter">
+<ClassMethod>1</ClassMethod>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[	do ..GetTestStrings(.rows)
+]]></Implementation>
+</Method>
+
+<Method name="TestListAndTable">
+<ClassMethod>1</ClassMethod>
+<ProcedureBlock>0</ProcedureBlock>
+<Implementation><![CDATA[
+	do ..GetTestStrings(.row)
+	set header = "Example of generating document"
+]]></Implementation>
+</Method>
+
+<Method name="TestThreeDigits">
+<ClassMethod>1</ClassMethod>
+</Method>
+
+<Method name="TestSamplePersonsTable">
+<ClassMethod>1</ClassMethod>
+</Method>
+</Class>
+</Export>

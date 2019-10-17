@@ -444,8 +444,8 @@ Method DeleteCurrentTagNodes()
 	s ..CurrentTagNodesList = ""
 }
 
-/// Перемещает содержимое тэга в первый узел его содержащий
-/// Остальные узлы удаляются
+/// Remote tag in first xml node
+/// Other nodes will be deleted
 Method StoreTagInOneNode()
 {
 	if '$D(..CurrentTagNodes) quit
@@ -922,12 +922,12 @@ Method SyntaxParse(node As %XML.Node) As %String
 		$$$PushToStack(..TagTypeStack,"if")
 		d ..PushToIfStack(node.NodeId)
 		set ..IfTags(node.NodeId) = ""
-		// Поиск выражения If
+		// Find if expression
 		set start = $locate(text, beginOfIfRegExp_"\s+",0,end)
 		set val = $ZSTRIP($P($E(text,end,*),"%}",1),"<>W")
 		set ..IfTags(node.NodeId,"expression") = val
 	}
-	// Проверка тэга set 
+	// Check 'set' tag 
 	elseif $locate(text, beginOfSetRegExp,0)'=0{
 		set fullSetRegExp = beginOfSetRegExp_variableRegExp_"\s*=\s*"_".+"_"\s*"_"%\}"
 		set isSetCorrect = $match(text, fullSetRegExp)
