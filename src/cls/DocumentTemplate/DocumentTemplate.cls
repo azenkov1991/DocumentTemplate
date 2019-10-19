@@ -1,5 +1,6 @@
-﻿Include %sySystem
-
+Include %sySystem
+Class DocumentTemplate.DocumentTemplate Extends %Persistent
+{
 /// Class <CLASS>DocumentPatterns</CLASS> represents a template of docs or odt document
 /// <p>^DocumentTemplateSettings - global for settgins </p>
 /// <p>^DocumentTemplateSettings("workingDirectory") - working directory for export/import files. By default: install-dir\mgr\Temp</p>
@@ -14,8 +15,7 @@
 /// <p> unzip -u -q -d $Directory  $Fullfilename </p>
 /// <p> zip -r -u -q $Fullfilename ./*</p>
 /// <p>^DocumentTemplateSettings("maxOrderIterations") - for protection against infinite loops, maximum iterations in order loop. 128000 by default
-Class DocumentTemplate.DocumentTemplate Extends %Persistent
-{
+
 
 /// Document binary content 
 Property Content As %Stream.GlobalBinary [ Required ];
@@ -290,4 +290,4 @@ ClassMethod WriteDebug(string)
 
 }
 
-}
+
