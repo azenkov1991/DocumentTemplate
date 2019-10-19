@@ -7,6 +7,11 @@ FROM $IMAGE
 
 USER root
 
+RUN apt-get update \
+    && apt-get install zip -y --no-install-recommends \
+    && apt-get install unzip -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /opt/app
 RUN chown ${ISC_PACKAGE_MGRUSER}:${ISC_PACKAGE_IRISGROUP} /opt/app
 
@@ -17,6 +22,7 @@ COPY  ./src ./src
 #COPY --chown=irisowner ./src/dfi ./src/dfi
 
 
+
 RUN iris start $ISC_PACKAGE_INSTANCENAME quietly && \
     /bin/echo -e \
             "zn \"%SYS\"\n" \
@@ -25,6 +31,9 @@ RUN iris start $ISC_PACKAGE_INSTANCENAME quietly && \
             " Do \$system.OBJ.Load(\"/opt/app/Installer.cls\",\"ck\")\n" \
             " Set sc = ##class(App.Installer).setup(, 3)\n" \
             " If 'sc do \$zu(4, \$JOB, 1)\n" \
+            " set ^DocumentTemplateSettings(\"workingDirectory\")=\"/iris/app/Results\"" \
+            " set ^DocumentTemplateSettings(\"zipCommand\")=\"zip -r -u -q \$Fullfilename ./*\"" \
+            " set ^DocumentTemplateSettings(\"unzipCommand\")=\"unzip -u -q -d \$Directory  \$Fullfilename \"" \
             " halt" \
     | iris session $ISC_PACKAGE_INSTANCENAME && \
     /bin/echo -e "sys\nsys\n" \
