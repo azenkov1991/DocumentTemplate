@@ -1,4 +1,4 @@
-﻿Include DocumentTemplate.General
+Include DocumentTemplate.General
 
 /// Render document template (docx or odt) unpacked in direcotry  <var>Directory</var>
 /// Lexical parser successively passes through character of the xml document

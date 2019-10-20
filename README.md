@@ -24,9 +24,31 @@ set ^DocumentTemplateSettings("unzipCommand")="""C:\Program Files\7-Zip\7z.exe""
 
 4. Run tests to ensure everything works fine:
 ```
-do ##class(DocumentsTemplates.Test).RunAllTests("<path-to-project-dir>\TestDocs")
+do ##class(DocumentTemplate.Test).RunAllTests("<path-to-project-dir>\TestDocs")
 ```
 Rendered test documents you will find in working directory.
+
+
+## Installing with Docker
+
+1. Build and start the container 
+```
+$ docker-compose -f "docker-compose.yml" up -d --build
+```
+Dockerfile will install zip/unzip into ubuntu container and setup zip and unzip variables.
+It also sets the working directory as "/Results" in source folder
+
+2. Open IRIS terminal in container
+```
+docker-compose exec iris iris session iris
+```
+
+3. Run tests:
+```
+USER>do ##class(DocumentTemplate.Test).RunAllTests("/iris/app/TestDocs") 
+```
+Collect the results in /Results folder.
+
 	   
 ## Rendering a template
 1. Create a template in Libre or Microsoft Word.
