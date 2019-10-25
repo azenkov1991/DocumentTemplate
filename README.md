@@ -28,6 +28,13 @@ do ##class(DocumentTemplate.Test).RunAllTests("<path-to-project-dir>\TestDocs")
 ```
 Rendered test documents you will find in working directory.
 
+## Installing with ZPM
+
+1. install/run [ZPM](https://openexchange.intersystems.com/package/ObjectScript-Package-Manager-2)
+2. install document-template package:
+```
+zpm: USER>install document-template
+```
 
 ## Installing with Docker
 
